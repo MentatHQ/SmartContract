@@ -1,104 +1,83 @@
 pragma solidity ^0.4.20;
 
 contract MentatTasks {
-        
+    
+    ////
+    // State variables (ledger)
+    ////
+     
     address public owner;  // contract´s creator
+    enum skillType { Skill, Expertise }
+    enum taskStatus { Open, Matched, Completed, Closed, Rejected }
+    enum chatMessageOwner { Agent, Buyer }
     
     struct skill {
-        uint ID;
-        uint customerID;
-        string skillName;
-        bool isExpertise; 
+        string name;
+        name skillType;
+        address[] agents;
     }        
     skill[] public skills;
     
     struct agent {
-        uint ID;
+        string name;
+        string email;        
+        agentSkill[] agentSkills;
         uint isOffLineUntil; // DateTime
         uint createdAt; // DateTime
-        string name;
-        string homeAddress;
-        string email;
-        address ethAddress;
+        uint lastAction; //DateTime
         bool isOffLine;
         bool isBusyNow;
     }
-    agent[] public agents;
+    mapping( address => agent) agents; 
     
-    struct agentXskill {
-        uint IDagent;
-        uint IDskill;
+    struct agentSkill {
+        uint skillID;
         uint experiencePoints;
         uint level;
     }
-    agentXskill[] public agentXskills;
+    agentSkill[] public agentSkills;
     
     struct task {
-        uint ID;
-        uint IDcustomer;
-        uint IDSkillRequired;
-        uint skillLevelRequired;
-        uint dateCreated; // DateTime
-        uint ClosedDateTime; // DateTime
-        string description; // the task itself (question from the buyer)
-        address buyerAddress;
-        bool isClosed;
+        uint applicationID;
+        address agent;
+        address buyer;
+        uint skillID;
+        uint skillLevel;
+        uint skillLevelMultiplier;
+        string description;
+        taskStatus status;
+        chatMessage[] chatMessages;
+        bool isForReview;
+        address reviewAgent1;
+        address reviewAgent2;
+        address reviewAgent3;        
+        bool reviewResult1;
+        bool reviewResult2;
+        bool reviewResult3;
+        uint expectedPrice;
+        uint price;
+        uint expectedCompleteTime;
+        uint completeTime;
+        uint createdAt; //DateTime
     }
     task[] public tasks;
     
-    struct response {
-        uint ID;
-        uint taskID;
-        uint agentID;
-        uint buyerID;
-        uint createdByID;
-        uint createdAt; // DateTime
-        string response;
+    struct application {
+        string company;
     }
-    response[] public responses;
-
-    struct taskHistory {
-        uint ID;
-        uint taskID;
-        uint marketRate;
-        uint expectedCompleteTime;
-        uint expectedPrice;
-        uint actualTime;  // DateTime
-        uint ActualPrice;
-        uint skillRequiredID;
-        uint skillLevelRequried;
-        uint reviewerID1;
-        uint reviewerID2;
-        uint reviewerID3;        
-        uint requestDateTime;  // DateTime
-        uint acceptedDateTime;  // DateTime
-        uint completedDateTime;  // DateTime
-        uint reviewedDateTime;  // DateTime
-        address agentAddress;
-        address buyerAddress;
-        bool neededOvertime;
-        bool IsForReview; 
-        string taskAnswer;
-        string reviewResult1;
-        string reviewResult2;
-        string reviewResult3;
-        string status; // 1 char
-    }
-    taskHistory[] public taskHistorys;
+    application[] public applications;
     
-    struct buyer {
-        uint ID;
-        string name;
-        address ethereumAddress;
+    struct chatMessage {
+        address agent;
+        address buyer;
+        string message;
+        uint createdAt; //DateTime;
+        chatMessageOwner sender;
     }
-    buyer[] public buyers;
     
-    struct agentHistory {
-        uint agentID;
-        uint loginDateTime; // DateTime
-        uint logoutDateTime; // DateTime
-    }
-    agentHistory[] public agentHistorys;
+    ////
+    // Methods
+    ////
     
     constructor() public {
         owner = msg.sender;
