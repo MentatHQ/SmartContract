@@ -2,9 +2,9 @@ pragma solidity ^0.4.20;
 
 contract MentatTasks {
     
-    ////
+    /////
     // State variables (ledger)
-    ////
+    /////
      
     address public owner;  // contract´s creator
     enum skillType { Skill, Expertise }
