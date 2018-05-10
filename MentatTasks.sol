@@ -46,7 +46,6 @@ contract MentatTasks {
         uint skillLevelMultiplier;
         string description;
         taskStatus status;
-        chatMessage[] chatMessages;
         bool isForReview;
         address reviewAgent1;
         address reviewAgent2;
@@ -67,13 +66,6 @@ contract MentatTasks {
     }
     application[] public applications;
     
-    struct chatMessage {
-        address agent;
-        address buyer;
-        string message;
-        uint createdAt; //DateTime;
-        chatMessageOwner sender;
-    }
     
     ////
     // Methods
