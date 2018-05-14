@@ -4,7 +4,7 @@ contract MentatTasks {
     
     /////
     // State variables (ledger)
-    /////
+    ///////////////////////////////
      
     address public owner;  // contract´s creator
     enum skillType { Skill, Expertise }
@@ -69,7 +69,7 @@ contract MentatTasks {
     
     ////
     // Methods
-    ////
+    ///////////////
     
     constructor() public {
         owner = msg.sender;
@@ -111,59 +111,124 @@ contract MentatTasks {
         task.buyerAddress = ...  // TODO
         task.isClosed = false;
     }
-    
-    
-    
-    
-    function priceCalculation(uint _expectedTime) view public {
-        
+             
+    function agentTurnOnLine() public {
+        // Params: address ethAddress
+        // Returns
     }
-    
-    function agentAdd() {
-        
+
+    function agentTurnOffLine() public {
+        // Params: address ethAddress
+        // Returns:
     }
-    
-    function agentRemove() {
-        
+
+    function agentTurnBusy() public {
+        // Params: address ethAddress
+        // Returns:
     }
-    
-/*    
 
-Other functions to be implemented:
+    function agentRemoval() public {
+        // Params: address ethAddress
+        // Returns: bool removalOK
+    }
 
-    agentUpdate()
-    agentsListing()
-    agentTurnOnLine()
-    agentTurnOffLine()
-    agentTurnBusy()
-    agentTurnAvailable()
-    
-    skillAdd()
-    skillRemove()
-    skillUpdate()
+    function agentAddSkill() public {
+        // Params: address ethAddress, string skill
+        // Returns:
+    }
 
-    addSkillToAgent()
-    removeSkillFromAgent()
-    updateExperiencePoints()
-    updateAgentSkillLevel()
-    
-    addTask()
-    closeTask()
-    
-    addResponse()
-    
-    addReviewToTask()
-    
-    setTaskFinalPrice()
-    
-    buyerAdd()
-    buyerUpdate()
-    buyerDelete()
-    
-    setAgentLogin()
-    setAgentLogout()
-    
-    
-*/
+    function agentRemoveSkill() public {
+        // Params: address ethAddress
+        // Returns:
+    }
+
+    function agentSignUp() public {
+        // Params: string name, string email, address ethAddress
+        // Returns: bool signUpOK
+    }
+
+    function isAgentLoggedIn() public {
+        // Params: address agent
+        // Returns:bool loggedIn 
+    }
+
+    function agentSignIn() public {
+        // Params: address agent
+        // Returns:bool loggedIn
+    }
+
+    function agentUpdateAccount() public {
+        // Params: address ethAddress, string name, string email
+        // Returns:
+    }
+
+    function agentUpdateSkillLevel() public {
+        // Params: address ethAddress, string skill, uint newLevel
+        // Returns:
+    }
+
+    function updateAgentExperiencePoints() public {
+        // Params: address ethAddress, string skill, uint newPoint
+        // Returns:
+    }
+
+    function addTask() public {
+        // Params: uint applicationID, uint skillID, uint skillLevel, uint skillMultiplier, string task, uint expectedTime, uint expectedPrice
+        // Returns: uint taskID
+    }
+
+    function agentGetTask() public {
+        // Params: address ethAddress, uint taskID
+        // Returns: bool agentGotTask
+    }
+
+    function agentAcceptTask() public {
+
+    }
+
+    function agentCompleteTask() public {
+
+    }
+
+    function agentRejectTask() public {
+
+    }
+
+    function checkTask() public {
+
+    }
+
+    function changeAgentTask() public {
+
+    }
+
+    function taskPriceCalculation() private {
+        // Params: uint taskID
+        // Returns: uint price
+    }
+
+    function chooseAgentForReviewing() public {
+
+    }
+
+    function agentStartReview() public {
+        // Params: address agent, uint taskID
+        // Returns:
+    }
+
+    function agentFinishReview() public {
+        // Params: address agent, uint taskID
+        // Returns: bool approved
+    }
+
+    function skillRemoval() public {
+        // Params: uint skiillID
+        // Returns:
+    }
+
+    function skillUpdate() public {
+        // Params: uint skiillID, string newName
+        // Returns:
+    }
 
 }
