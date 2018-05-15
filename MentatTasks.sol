@@ -13,7 +13,7 @@ contract MentatTasks {
     
     struct skill {
         string name;
-        name skillType;
+        skillType skill;
         address[] agents;
     }        
     skill[] public skills;
@@ -28,7 +28,7 @@ contract MentatTasks {
         bool isOffLine;
         bool isBusyNow;
     }
-    mapping( address => agent) agents; 
+    mapping(address => agent) agents; 
     
     struct agentSkill {
         uint skillID;
@@ -75,61 +75,24 @@ contract MentatTasks {
         owner = msg.sender;
     }
     
-    function assignTaskToAgent(string _task, string _skill, uint _level) public {
-        
-        uint auxSkillID;
-        uint auxMaxToken = 0;
-        uint auxAgentID;
-
-        // Look-up for the skill ID
-        for (uint i = 0; i < skills.length-1; i++) {    
-            if(skills[i].skillName == _skill) {
-                auxSkillID = skills[i].ID;
-                // TODO: to consider if skill not found in struct
-            }
-        }
-        
-        // Look-up for the required ID and level
-        for(uint j = 0; j < agentXskills.length-1; j++) {
-            if(agentXskills[j].IDskill == auxSkillID && agentXskills[j].IDskill.level == _level ) {
-                if(agentXskills[j].TOKENBALANCE > auxMaxToken) {    // TODO: Implement the function to retrieve MENT balance from address
-                    auxAgentID = agentXskills[j].IDagent;
-                    auxMaxToken = agentXskills[j].TOKENBALANCE; // field to be changed...
-            }
-        }
-        
-        // Update Agent
-        agent[auxAgentID].isBusyNow = true;
-        
-        // Create task
-        task.push();
-        task.IDcustomer = ....  // TODO
-        task.skillLevelRequired = _level;
-        task.dateCreated = now;
-        task.ClosedDateTime = 0;
-        task.description = _task;
-        task.buyerAddress = ...  // TODO
-        task.isClosed = false;
-    }
-             
-    function agentTurnOnLine() public {
-        // Params: address ethAddress
-        // Returns
+    function agentTurnOffLine(address _ethAddress) internal {
+        agents[_ethAddress].isOffLine = true;
     }
 
-    function agentTurnOffLine() public {
-        // Params: address ethAddress
-        // Returns:
+    function agentTurnOnLine(address _ethAddress) internal {
+        agents[_ethAddress].isOffLine = false;
     }
 
-    function agentTurnBusy() public {
-        // Params: address ethAddress
-        // Returns:
+    function agentTurnBusy(address _ethAddress) internal {
+        agents[_ethAddress].isBusyNow = true;
     }
 
-    function agentRemoval() public {
-        // Params: address ethAddress
-        // Returns: bool removalOK
+    function agentTurnAvailable(address _ethAddress) internal {
+        agents[_ethAddress].isBusyNow = false;
+    }
+    
+    function agentRemoval(address _ethAddress) public {
+        delete agents[_ethAddress];
     }
 
     function agentAddSkill() public {
@@ -142,24 +105,26 @@ contract MentatTasks {
         // Returns:
     }
 
-    function agentSignUp() public {
+    function agentSignUp(address _ethAddress, string _name, string _email) public {
         // Params: string name, string email, address ethAddress
         // Returns: bool signUpOK
     }
 
-    function isAgentLoggedIn() public {
-        // Params: address agent
-        // Returns:bool loggedIn 
+    function isAgentLoggedIn(address _ethAddress) public returns (bool) {
+        bool loggedIn = false;
+        if (agents[_ethAddress].isOffLine == false) {
+            loggedIn = true;
+        }
+        return loggedIn;
     }
 
-    function agentSignIn() public {
-        // Params: address agent
-        // Returns:bool loggedIn
+    function agentSignIn(address _ethAddress) public {
+        agents[_ethAddress].isOffLine = false;
     }
 
-    function agentUpdateAccount() public {
-        // Params: address ethAddress, string name, string email
-        // Returns:
+    function agentUpdateAccount(address _ethAddress, string _name, string _email) public {
+        agents[_ethAddress].name = _name;
+        agents[_ethAddress].email = _email;
     }
 
     function agentUpdateSkillLevel() public {
