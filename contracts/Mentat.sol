@@ -1,26 +1,26 @@
 pragma solidity ^0.4.23;
 
 contract Mentat {
-    
+
     /////
     // State variables (ledger)
     ///////////////////////////////
-     
+
     address public owner;  // contract´s creator
     enum SkillType { Skill, Expertise }
     enum TaskStatus { Opened, Matched, Completed, Closed, Rejected }
     enum ChatMessageOwner { Agent, Buyer }
-    
+
     struct Skill {
-        bytes32 name;
+        string name;
         SkillType skill;
         address[] agents;
-    }        
+    }
     Skill[] public skills;
-    
+
     struct Agent {
-        bytes32 name;
-        bytes32 email;        
+        string name;
+        string email;
         AgentSkill[] agentSkills;
         uint isOffLineUntil; // DateTime
         uint createdAt; // DateTime
@@ -28,15 +28,15 @@ contract Mentat {
         bool isOffLine;
         bool isBusyNow;
     }
-    mapping(address => Agent) agents; 
-    
+    mapping(address => Agent) agents;
+
     struct AgentSkill {
         uint skillID;
         uint experiencePoints;
         uint level;
     }
     AgentSkill[] public agentSkills;
-    
+
     struct Task {
         uint applicationID;
         address agent;
@@ -44,12 +44,12 @@ contract Mentat {
         uint skillID;
         uint skillLevel;
         uint skillLevelMultiplier;
-        bytes32 description;
+        string description;
         TaskStatus status;
         bool isForReview;
         address reviewAgent1;
         address reviewAgent2;
-        address reviewAgent3;        
+        address reviewAgent3;
         bool reviewResult1;
         bool reviewResult2;
         bool reviewResult3;
@@ -60,62 +60,84 @@ contract Mentat {
         uint createdAt; //DateTime
     }
     //Task[] public tasks;
-    
+
     struct Application {
-        bytes32 company;
+        string company;
     }
     Application[] public applications;
-    
+
     ////
     // EVENTS
     ///////////////
-    
-    event SUCCESS(bytes32 message);
-    event FAIL(bytes32 message);
-    
+
+    event SUCCESS(string message);
+    event FAIL(string message);
+
     ////
     // Methods
     ///////////////
-    
+
     constructor() public {
         owner = msg.sender;
     }
-    
-    function agentSignIn() public { 
+
+    function agentSignIn() public {
         emit SUCCESS("signedIn"); //TODO: remove stub
         agents[msg.sender].isOffLine = false;
     }
 
-    function agentSignUp(bytes32 name, bytes32 email) public {
+    function agentSignUp(string name, string email) public {
         emit SUCCESS("signedUp"); //TODO: remove stub
-        // Params: bytes32 name, bytes32 email, address ethAddress
+        // Params: string name, string email, address ethAddress
         // Returns: bool signUpOK
     }
+    function isAgentOnline(address agent) public view returns (bool) {
+        return true; //TODO: remove stub
+        
+        bool loggedIn = false;
+        if (agents[agent].isOffLine == false) {
+            loggedIn = true;
+        }
+        return loggedIn;
+    }
 
+    function agentGetAction() public view returns (uint) {
+        return uint(1); //TODO: remove stub
+    }
+
+    function agentGetTask() public view returns (string appName, string description) {
+        return ("Mentat Airlines", "I want to buy airplane. Which one should I buy?"); //TODO: remove stub
+    }
+
+    function agentGetReview() public view returns (string appName, string description) {
+        return ("iMentat", "I want to buy apple. Which one should I buy?"); //TODO: remove stub
+    }
+
+/*
     function agentGetTask() public view returns(
         uint taskId,
         uint applicationID,
         address buyer,
-        bytes32 description,
+        string description,
         uint status, // TaskStatus
         bool isForReview,
         address reviewAgent1,
         address reviewAgent2,
-        address reviewAgent3,        
+        address reviewAgent3,
         bool reviewResult1,
         bool reviewResult2,
         bool reviewResult3,
         uint price,
-        uint createdAt //DateTime*/
+        uint createdAt //DateTime
 ) {
         //Task memory task = Task(1, msg.sender, msg.sender, 1,2,1,"test description", TaskStatus.Opened, false, msg.sender, msg.sender, msg.sender, true, true, true, 100, 200, 1526480941, 1526480941, 1526480941);
         return (uint(1), uint(1), msg.sender, "test description", uint(TaskStatus.Opened), false, msg.sender, msg.sender, msg.sender, true, true, true, uint(100), uint(1526480941));
-        
+
         // Params: address ethAddress, uint taskID
         // Returns: bool agentGotTask
-    }
-    
-    
+    }*/
+
+
     function agentTurnOffLine(address _ethAddress) internal {
         agents[_ethAddress].isOffLine = true;
     }
@@ -131,42 +153,33 @@ contract Mentat {
     function agentTurnAvailable(address _ethAddress) internal {
         agents[_ethAddress].isBusyNow = false;
     }
-    
+
     function agentRemoval(address _ethAddress) public {
         delete agents[_ethAddress];
     }
 
     function agentAddSkill() public {
-        // Params: address ethAddress, bytes32 skill
+        // Params: address ethAddress, string skill
         // Returns:
     }
 
-
-    function isAgentLoggedIn(address _ethAddress) private returns (bool) {
-        bool loggedIn = false;
-        if (agents[_ethAddress].isOffLine == false) {
-            loggedIn = true;
-        }
-        return loggedIn;
-    }
-
-    function agentUpdateAccount(address _ethAddress, bytes32 _name, bytes32 _email) public {
+    function agentUpdateAccount(address _ethAddress, string _name, string _email) public {
         agents[_ethAddress].name = _name;
         agents[_ethAddress].email = _email;
     }
 
     function agentUpdateSkillLevel() public {
-        // Params: address ethAddress, bytes32 skill, uint newLevel
+        // Params: address ethAddress, string skill, uint newLevel
         // Returns:
     }
 
     function updateAgentExperiencePoints() public {
-        // Params: address ethAddress, bytes32 skill, uint newPoint
+        // Params: address ethAddress, string skill, uint newPoint
         // Returns:
     }
 
     function addTask() public {
-        // Params: uint applicationID, uint skillID, uint skillLevel, uint skillMultiplier, bytes32 task, uint expectedTime, uint expectedPrice
+        // Params: uint applicationID, uint skillID, uint skillLevel, uint skillMultiplier, string task, uint expectedTime, uint expectedPrice
         // Returns: uint taskID
     }
 
@@ -215,9 +228,9 @@ contract Mentat {
     }
 
     function skillUpdate() public {
-        // Params: uint skiillID, bytes32 newName
+        // Params: uint skiillID, string newName
         // Returns:
     }
-    
+
 
 }
