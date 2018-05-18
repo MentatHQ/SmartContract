@@ -1,0 +1,23 @@
+{
+  "name": "mentat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MentatHQ/SmartContract.git"
+  },
+  "author": "",
+  "license": "",
+  "bugs": {
+    "url": "https://github.com/MentatHQ/SmartContract/issues"
+  },
+  "homepage": "https://github.com/MentatHQ/SmartContract#readme",
+  "dependencies": {
+    "openzeppelin-solidity": "1.9.0"
+  }
+}
