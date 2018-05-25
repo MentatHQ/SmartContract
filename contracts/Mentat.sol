@@ -158,9 +158,9 @@ contract Mentat {
         delete agents[_ethAddress];
     }
 
-    function agentAddSkill() public {
-        // Params: address ethAddress, string skill
-        // Returns:
+    function agentAddSkill(address _ethAddress, uint _skill, uint _experiencePoints, uint _level) public {
+       // AgentSkill  auxAgent  = AgentSkill({skillID: _skill, experiencePoints: _experiencePoints, level: _level}); \\ TODO: To solve Memory x Storage issue
+       // uint i = agentSkills.push(auxAgent);
     }
 
     function agentUpdateAccount(address _ethAddress, string _name, string _email) public {
