@@ -28,7 +28,7 @@ contract Mentat {
         bool isOffLine;
         bool isBusyNow;
     }
-    mapping(address => Agent) agents;
+    mapping(address => Agent) public agents;
 
     struct AgentSkill {
         uint skillID;
