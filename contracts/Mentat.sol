@@ -21,6 +21,7 @@ contract Mentat {
     struct Agent {
         string name;
         string email;
+        bool isBusy;
         AgentSkill[] agentSkills;
         uint registrationTimestamp; // DateTime
         uint lastActionTimestamp; //DateTime
@@ -32,7 +33,7 @@ contract Mentat {
 
     struct AgentSkill {
         uint skillID;
-        uint experiencePoints;
+        uint experience;
         uint level;
     }
     AgentSkill[] public agentSkills;
