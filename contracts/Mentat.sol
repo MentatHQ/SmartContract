@@ -8,7 +8,7 @@ contract Mentat {
 
     address public owner;  // contract´s creator
     enum SkillType { Skill, Expertise }
-    enum TaskStatus { Opened, Matched, Completed, Closed, Rejected }
+    enum TaskStatus { Opened, Paid, Matched, Seen, Tokens_Paid, Rejected, Completed, Closed }
     enum ChatMessageOwner { Agent, Buyer }
 
     struct Skill {
@@ -22,11 +22,11 @@ contract Mentat {
         string name;
         string email;
         AgentSkill[] agentSkills;
-        uint isOffLineUntil; // DateTime
-        uint createdAt; // DateTime
-        uint lastAction; //DateTime
-        bool isOffLine;
-        bool isBusyNow;
+        uint registrationTimestamp; // DateTime
+        uint lastActionTimestamp; //DateTime
+        uint tasksCompleted;
+        uint tasksRejected;
+        uint agentsReviews;
     }
     mapping(address => Agent) public agents;
 
@@ -44,9 +44,11 @@ contract Mentat {
         uint skillID;
         uint skillLevel;
         uint skillLevelMultiplier;
+        bytes32 request;
+        bytes32 response;
         string description;
         TaskStatus status;
-        bool isForReview;
+        address[] rejectedAgents;
         address reviewAgent1;
         address reviewAgent2;
         address reviewAgent3;
@@ -55,9 +57,13 @@ contract Mentat {
         bool reviewResult3;
         uint expectedPrice;
         uint price;
-        uint expectedCompleteTime;
-        uint completeTime;
-        uint createdAt; //DateTime
+        uint tokensAmount;
+        bool withdrawn;
+        bool tokensWithdrawn;
+        uint expectedCompleteTime;  //DateTime
+        uint completeTime;  //DateTime
+        uint createdTimestamp;  //DateTime
+        uint lastUpdateTimestamp; //DateTime
     }
     //Task[] public tasks;
 
