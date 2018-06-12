@@ -132,7 +132,7 @@ contract Mentat {
             isBusy : false,
             agentSkillsCount : 0,
             registrationTimestamp : now,
-            agents[msg.sender].name = _name; : now,
+            lastActionTimestamp : now,
             tasksCompleted : 0,
             tasksRejected : 0,
             agentsReviews : 0
