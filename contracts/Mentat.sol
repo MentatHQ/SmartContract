@@ -132,7 +132,7 @@ contract Mentat {
             isBusy : false,
             agentSkillsCount : 0,
             registrationTimestamp : now,
-            lastActionTimestamp : now,
+            agents[msg.sender].name = _name; : now,
             tasksCompleted : 0,
             tasksRejected : 0,
             agentsReviews : 0
@@ -144,6 +144,15 @@ contract Mentat {
     isAgentRegistered(agent)
     returns (bool) {
         return ((now - agents[agent].lastActionTimestamp) < 1 hours);
+    }
+
+    function agentUpdateAccount(string _name, string _email)
+    isAgentRegistered(msg.sender)
+    public  {
+        agents[msg.sender].name = _name;
+        agents[msg.sender].email = _email;
+        agents[msg.sender].lastActionTimestamp = now;
+        emit SUCCESS("agentAccountUpdated");
     }
 
     function agentGetAction() public view returns (uint) {
