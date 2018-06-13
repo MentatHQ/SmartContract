@@ -8,4 +8,10 @@ contract('Mentat', (accounts) => {
         console.log(task);
     });
 
+    it("should return True if agent data was update correctly", async () => {
+        const mentat = await Mentat.new("NewNameOfTheAgent","NewEmailOfTheAgent");
+        const task = await mentat.agentUpdateAccount();
+        console.log(task);
+    });
+    
 });
