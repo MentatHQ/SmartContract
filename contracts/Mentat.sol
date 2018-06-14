@@ -18,7 +18,8 @@ contract Mentat {
         uint agentsCount;
     }
 
-    Skill[] public skills;
+    mapping(uint => Skill) public skills;
+    uint public skillsCount;
 
     struct Agent {
         string name;
@@ -41,9 +42,10 @@ contract Mentat {
         uint level;
     }
 
-    AgentSkill[] public agentSkills;
+    mapping (uint => AgentSkill) public agentSkills;
+    uint public agentSkillsCount;
 
-    struct Task {
+    struct TaskBundle1 {
         uint applicationID;
         address agent;
         address buyer;
@@ -56,6 +58,11 @@ contract Mentat {
         TaskStatus status;
         mapping(uint => address) rejectedAgents;
         uint rejectedAgentsCount;
+        uint createdTimestamp;  //DateTime
+        uint lastUpdateTimestamp; //DateTime
+    }
+
+    struct TaskBundle2 {
         address reviewAgent1;
         address reviewAgent2;
         address reviewAgent3;
@@ -69,16 +76,18 @@ contract Mentat {
         bool tokensWithdrawn;
         uint expectedCompleteTime;  //DateTime
         uint completeTime;  //DateTime
-        uint createdTimestamp;  //DateTime
-        uint lastUpdateTimestamp; //DateTime
     }
-    //Task[] public tasks;
+
+    mapping(uint => TaskBundle1) public tasksBundle1;
+    mapping(uint => TaskBundle2) public tasksBundle2;
+    uint public tasksCount;
 
     struct Application {
         string company;
     }
 
-    Application[] public applications;
+    mapping (uint => Application) public applications;
+    uint public applicationsCount;
 
     ////
     // Events
@@ -148,7 +157,7 @@ contract Mentat {
 
     function agentUpdateAccount(string _name, string _email)
     isAgentRegistered(msg.sender)
-    public  {
+    public {
         agents[msg.sender].name = _name;
         agents[msg.sender].email = _email;
         agents[msg.sender].lastActionTimestamp = now;
