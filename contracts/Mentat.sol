@@ -161,7 +161,7 @@ contract Mentat {
     }
 
     function agentGetTask() public view returns (string appName, string description) {
-        return ("Mentat Airlines", "I want to buy airplane. Which one should I buy?");
+        return ("Mentat Airlines", "I wanna buy a dragon. Which one should I buy?");
         //TODO: remove stub
     }
 

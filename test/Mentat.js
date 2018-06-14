@@ -5,7 +5,11 @@ contract('Mentat', (accounts) => {
 
     it("agent should sign up", async () => {
         mentat = await Mentat.at(Mentat.address);
-        await mentat.agentSignUp("Dovahkiin", "dragonborn@mentat.org");
+        await mentat.agentSignUp("Dragonborn", "Dovahkiin@mentat.org");
+        const agent = await mentat.agents(accounts[0]);
+        assert.equal(agent[0], "Dragonborn");
+        assert.equal(agent[1], "Dovahkiin@mentat.org");
+        console.log("Congratulations, " + agent[0] + "! We have some work for you.");
     });
 
     it("agent should sign out", async () => {
@@ -25,10 +29,12 @@ contract('Mentat', (accounts) => {
         assert.equal(await mentat.isAgentOnline(accounts[0]), true);
     });
 
-    it("should return True if agent data was update correctly", async () => {
-        mentat = await Mentat.new("NewNameOfTheAgent", "NewEmailOfTheAgent");
-        const task = await mentat.agentUpdateAccount();
-        console.log(task);
+    it("agent should update data", async () => {
+        await mentat.agentUpdateAccount("Dovahkiin", "Dragonborn@mentat.org");
+        const agent = await mentat.agents(accounts[0]);
+        assert.equal(agent[0], "Dovahkiin");
+        assert.equal(agent[1], "Dragonborn@mentat.org");
+        console.log("Welcome back, " + agent[0]);
     });
 
     //TODO
