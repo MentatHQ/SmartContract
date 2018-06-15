@@ -42,9 +42,6 @@ contract Mentat {
         uint level;
     }
 
-    mapping (uint => AgentSkill) public agentSkills;
-    uint public agentSkillsCount;
-
     struct TaskBundle1 {
         uint applicationID;
         address agent;
