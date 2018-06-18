@@ -32,6 +32,8 @@ contract Mentat {
         uint tasksCompleted;
         uint tasksRejected;
         uint agentsReviews;
+        uint currentTaskId;
+        bool currentTaskType; // 1 - task, 0 - review
     }
 
     mapping(address => Agent) public agents;
@@ -80,10 +82,10 @@ contract Mentat {
     uint public tasksCount;
 
     struct Application {
-        string company;
+        string name;
     }
 
-    mapping (uint => Application) public applications;
+    mapping(uint => Application) public applications;
     uint public applicationsCount;
 
     ////
@@ -141,7 +143,9 @@ contract Mentat {
             lastActionTimestamp : now,
             tasksCompleted : 0,
             tasksRejected : 0,
-            agentsReviews : 0
+            agentsReviews : 0,
+            currentTaskId : 0,
+            currentTaskType : false
             });
         emit SUCCESS("signedUp");
     }
@@ -161,19 +165,22 @@ contract Mentat {
         emit SUCCESS("agentAccountUpdated");
     }
 
-    function agentGetAction() public view returns (uint) {
-        return uint(1);
-        //TODO: remove stub
+    function agentGetCurrentTaskType() public view
+    isAgentRegistered(msg.sender)
+    returns (bool) {
+        return agents[msg.sender].currentTaskType;
     }
 
-    function agentGetTask() public view returns (string appName, string description) {
-        return ("Mentat Airlines", "I wanna buy a dragon. Which one should I buy?");
-        //TODO: remove stub
-    }
-
-    function agentGetReview() public view returns (string appName, string description) {
-        return ("iMentat", "I want to buy apple. Which one should I buy?");
-        //TODO: remove stub
+    function agentGetCurrentTask() public view
+    isAgentRegistered(msg.sender)
+    returns (uint taskId, bool taskType, string applicationName, string description) {
+        taskType = agents[msg.sender].currentTaskType;
+        taskId = agents[msg.sender].currentTaskId;
+        require(taskId > 0);
+        uint applicationId = tasksBundle1[taskId].applicationID;
+        applicationName = applications[applicationId].name;
+        description = tasksBundle1[taskId].description;
+        return;
     }
 
 }

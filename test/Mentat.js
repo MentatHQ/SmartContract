@@ -9,7 +9,6 @@ contract('Mentat', (accounts) => {
         const agent = await mentat.agents(accounts[0]);
         assert.equal(agent[0], "Dragonborn");
         assert.equal(agent[1], "Dovahkiin@mentat.org");
-        console.log("Congratulations, " + agent[0] + "! We have some work for you.");
     });
 
     it("agent should sign out", async () => {
@@ -34,15 +33,19 @@ contract('Mentat', (accounts) => {
         const agent = await mentat.agents(accounts[0]);
         assert.equal(agent[0], "Dovahkiin");
         assert.equal(agent[1], "Dragonborn@mentat.org");
-        console.log("Welcome back, " + agent[0]);
     });
 
-    //TODO
-    it("should get agent's task", async () => {
-        //const mentat = await Mentat.new();
-        const task = await mentat.agentGetTask();
-        console.log(task);
+    it("should get current task for agent (empty)", async () => {
+        try {
+            const task = await mentat.agentGetCurrentTask();
+            throw("exists");
+        } catch (e) {
+            assert.notEqual(e, "exists", "task exists");
+        }
     });
 
+    it("should get current task type", async () => {
+        assert.equal(await mentat.agentGetCurrentTaskType(), false);
+    });
 
 });
