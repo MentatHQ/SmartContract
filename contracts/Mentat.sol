@@ -8,7 +8,16 @@ contract Mentat {
 
     address public owner;  // contract´s creator
     enum SkillType {Skill, Expertise}
-    enum TaskStatus {Opened, Paid, Matched, Seen, Tokens_Paid, Rejected, Completed, Closed}
+    enum TaskStatus {
+        Opened, // waiting for a payment
+        Paid, // buyer should pay right after the opening?
+        Matched, // agent is matched for the task
+        Accepted,// // agent accepted the task
+        Tokens_Paid, // ???
+        Rejected, // after N rejections?
+        Completed, // agent answered?
+        Closed // when buyer confirms the answer?
+    }
     enum ChatMessageOwner {Agent, Buyer}
 
     struct Skill {
