@@ -249,6 +249,11 @@ contract Mentat {
         emit SUCCESS("agentReviewFinished");
     }    
 
+    function getTaskPrice(uint _taskID) public view  
+    returns (uint)  {
+        return tasksBundle2[_taskID].price;
+    }
+    
     function agentGetCurrentTaskType() public view
     checkAgentRegistered(msg.sender)
     returns (bool) {
