@@ -17,7 +17,8 @@ contract Mentat {
         Matched, // agent is matched for the task
         Accepted, // // agent accepted the task
         Rejected, // after N rejections
-        Completed // agent answered
+        Completed, // agent answered
+        Reviewed // the third review is done
     }
     enum ChatMessageOwner {Agent, Buyer}
 
@@ -203,12 +204,11 @@ contract Mentat {
     returns (bool) {
         require(!agentIsBusy(msg.sender));
         agents[msg.sender].isBusy = true;
-        agents[msg.sender].agentsReviews++;
         agents[msg.sender].currentTaskId = _taskID;
         agents[msg.sender].currentTaskType = false;
-        if (tasksBundle2[_taskID].reviewAgent1 > 0) {
-            if(tasksBundle2[_taskID].reviewAgent2 > 0) {
-                if(tasksBundle2[_taskID].reviewAgent3 > 0) {
+        if (tasksBundle2[_taskID].reviewAgent1 != address(0)) {
+            if(tasksBundle2[_taskID].reviewAgent2 != address(0)) {
+                if(tasksBundle2[_taskID].reviewAgent3 != address(0)) {
                     return false;
                 } else {
                     tasksBundle2[_taskID].reviewAgent3 = msg.sender;
@@ -221,8 +221,33 @@ contract Mentat {
         }
         tasksBundle1[_taskID].lastUpdateTimestamp = now;
         agentUpdateOnline(msg.sender);
-        emit SUCCESS("agentAccountUpdated");
+        emit SUCCESS("agentReviewStarted");
     }
+    
+    function agentFinishReview(uint _taskID, bool _result) public 
+    checkAgentRegistered(msg.sender)
+    returns (bool) {
+        agents[msg.sender].isBusy = false;
+        agents[msg.sender].agentsReviews++;
+        agents[msg.sender].currentTaskId = 0;
+        if (tasksBundle2[_taskID].reviewAgent1 != msg.sender) {
+            if(tasksBundle2[_taskID].reviewAgent2 != msg.sender) {
+                if(tasksBundle2[_taskID].reviewAgent3 != msg.sender) {
+                    return false;
+                } else {
+                    tasksBundle2[_taskID].reviewResult3 = _result;
+                }   
+            } else {
+                tasksBundle2[_taskID].reviewResult2 = _result;
+            }
+        } else {
+            tasksBundle2[_taskID].reviewResult1 = _result;
+        }
+        tasksBundle1[_taskID].lastUpdateTimestamp = now;
+        tasksBundle1[_taskID].status = TaskStatus.Reviewed;
+        agentUpdateOnline(msg.sender);
+        emit SUCCESS("agentReviewFinished");
+    }    
 
     function agentGetCurrentTaskType() public view
     checkAgentRegistered(msg.sender)
