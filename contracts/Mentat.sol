@@ -192,8 +192,38 @@ contract Mentat {
     function agentUpdateAccount(string _name, string _email)
     checkAgentRegistered(msg.sender)
     public {
-        agents[msg.sender].name = _name;
-        agents[msg.sender].email = _email;
+        agents[msg.sender] = Agent({
+            name: _name,
+            email: _email
+            });
+        agentUpdateOnline(msg.sender);
+        emit SUCCESS("agentAccountUpdated");
+    }
+
+    function agentStartReview(uint _taskID) public 
+    isAgentRegistered(agent)
+    returns (bool) {
+        require(!agentIsBusy(msg.sender));
+        agents[msg.sender] = Agent({
+            isBusy: true,
+            agentsReviews: agentsReviews++,
+            currentTaskId: _taskID,
+            currentTaskType: 0
+        });
+        if (tasksBundle2[_taskId].reviewAgent1 > 0) {
+            if(tasksBundle2[_taskId].reviewAgent2 > 0) {
+                if(tasksBundle2[_taskId].reviewAgent3 > 0) {
+                    return false;
+                } else {
+                    tasksBundle2[_taskId].reviewAgent3 = msg.sender;
+                }   
+            } else {
+                tasksBundle2[_taskId].reviewAgent2 = msg.sender;
+            }
+        } else {
+            tasksBundle2[_taskId].reviewAgent1 = msg.sender;
+        }
+        tasksBundle2[_taskId].lastUpdateTimestamp = now;
         agentUpdateOnline(msg.sender);
         emit SUCCESS("agentAccountUpdated");
     }
@@ -226,12 +256,19 @@ contract Mentat {
 
 
     ////
-    // Public methods
+    // Internal methods
     ///////////////
     function agentUpdateOnline(address agent)
     internal
     {
         agents[agent].lastActionTimestamp = now;
+    }
+
+    function agentIsBusy(address agent)
+    internal
+    returns (bool)
+    {
+        return(agents[agent].isBusy);
     }
 
 }
