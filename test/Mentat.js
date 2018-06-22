@@ -1,10 +1,19 @@
 const Mentat = artifacts.require("./Mentat.sol");
+const MentatToken = artifacts.require("./MentatToken.sol");
 let mentat;
+let mentatToken;
 
 contract('Mentat', (accounts) => {
 
-    it("agent should sign up", async () => {
+    it("should initialize token and Mentat", async () => {
         mentat = await Mentat.at(Mentat.address);
+        mentatToken = await MentatToken.at(MentatToken.address);
+
+        mentat.setMentatToken(mentatToken.address);
+        mentatToken.setMentat(mentat.address);
+    });
+
+        it("agent should sign up", async () => {
         await mentat.agentSignUp("Dragonborn", "Dovahkiin@mentat.org");
         const agent = await mentat.agents(accounts[0]);
         assert.equal(agent[0], "Dragonborn");
@@ -47,5 +56,7 @@ contract('Mentat', (accounts) => {
     it("should get current task type", async () => {
         assert.equal(await mentat.agentGetCurrentTaskType(), false);
     });
+
+    //TODO accept task (should implement buyer logic first)
 
 });

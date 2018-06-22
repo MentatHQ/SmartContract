@@ -1,5 +1,7 @@
 pragma solidity ^0.4.23;
 
+import './MentatToken.sol';
+
 contract Mentat {
 
     /////
@@ -7,16 +9,15 @@ contract Mentat {
     ///////////////////////////////
 
     address public owner;  // contract´s creator
+    address public mentatToken;
     enum SkillType {Skill, Expertise}
     enum TaskStatus {
         Opened, // waiting for a payment
-        Paid, // buyer should pay right after the opening?
+        Paid, // buyer should pay right after the opening
         Matched, // agent is matched for the task
-        Accepted,// // agent accepted the task
-        Tokens_Paid, // ???
-        Rejected, // after N rejections?
-        Completed, // agent answered?
-        Closed // when buyer confirms the answer?
+        Accepted, // // agent accepted the task
+        Rejected, // after N rejections
+        Completed // agent answered
     }
     enum ChatMessageOwner {Agent, Buyer}
 
@@ -108,13 +109,23 @@ contract Mentat {
     // Modifiers
     ///////////////
 
-    modifier isAgentRegistered(address _address) {
+    modifier checkAgentRegistered(address _address) {
         require(agents[_address].registrationTimestamp > 0);
         _;
     }
 
     modifier isNotAgentRegistered(address _address) {
         require(agents[_address].registrationTimestamp == 0);
+        _;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
+    }
+
+    modifier onlyMentatToken() {
+        require(msg.sender == mentatToken);
         _;
     }
 
@@ -126,15 +137,21 @@ contract Mentat {
         owner = msg.sender;
     }
 
-    function agentSignIn()
-    isAgentRegistered(msg.sender)
+    function setMentatToken(address newMentatToken)
+    onlyOwner
     public {
-        agents[msg.sender].lastActionTimestamp = now;
+        mentatToken = newMentatToken;
+    }
+
+    function agentSignIn()
+    checkAgentRegistered(msg.sender)
+    public {
+        agentUpdateOnline(msg.sender);
         emit SUCCESS("signedIn");
     }
 
     function agentSignOut()
-    isAgentRegistered(msg.sender)
+    checkAgentRegistered(msg.sender)
     public {
         agents[msg.sender].lastActionTimestamp = 0;
         emit SUCCESS("signedOut");
@@ -159,29 +176,36 @@ contract Mentat {
         emit SUCCESS("signedUp");
     }
 
+    function isAgentRegistered(address agent) public view
+    checkAgentRegistered(agent)
+    returns (bool)
+    {
+        return true;
+    }
+
     function isAgentOnline(address agent) public view
-    isAgentRegistered(agent)
+    checkAgentRegistered(agent)
     returns (bool) {
         return ((now - agents[agent].lastActionTimestamp) < 1 hours);
     }
 
     function agentUpdateAccount(string _name, string _email)
-    isAgentRegistered(msg.sender)
+    checkAgentRegistered(msg.sender)
     public {
         agents[msg.sender].name = _name;
         agents[msg.sender].email = _email;
-        agents[msg.sender].lastActionTimestamp = now;
+        agentUpdateOnline(msg.sender);
         emit SUCCESS("agentAccountUpdated");
     }
 
     function agentGetCurrentTaskType() public view
-    isAgentRegistered(msg.sender)
+    checkAgentRegistered(msg.sender)
     returns (bool) {
         return agents[msg.sender].currentTaskType;
     }
 
     function agentGetCurrentTask() public view
-    isAgentRegistered(msg.sender)
+    checkAgentRegistered(msg.sender)
     returns (uint taskId, bool taskType, string applicationName, string description) {
         taskType = agents[msg.sender].currentTaskType;
         taskId = agents[msg.sender].currentTaskId;
@@ -190,6 +214,24 @@ contract Mentat {
         applicationName = applications[applicationId].name;
         description = tasksBundle1[taskId].description;
         return;
+    }
+
+    function acceptTask(uint taskId, address agent, uint tokensAmount)
+    onlyMentatToken
+    public {
+        tasksBundle1[taskId].status = TaskStatus.Accepted;
+        tasksBundle2[taskId].tokensAmount = tokensAmount;
+        agentUpdateOnline(agent);
+    }
+
+
+    ////
+    // Public methods
+    ///////////////
+    function agentUpdateOnline(address agent)
+    internal
+    {
+        agents[agent].lastActionTimestamp = now;
     }
 
 }
