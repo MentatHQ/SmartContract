@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-import './MentatToken.sol';
+//import './MentatToken.sol';
 
 contract Mentat {
 
@@ -192,38 +192,34 @@ contract Mentat {
     function agentUpdateAccount(string _name, string _email)
     checkAgentRegistered(msg.sender)
     public {
-        agents[msg.sender] = Agent({
-            name: _name,
-            email: _email
-            });
+        agents[msg.sender].name = _name;
+        agents[msg.sender].email = _email;
         agentUpdateOnline(msg.sender);
         emit SUCCESS("agentAccountUpdated");
     }
 
     function agentStartReview(uint _taskID) public 
-    isAgentRegistered(agent)
+    checkAgentRegistered(msg.sender)
     returns (bool) {
         require(!agentIsBusy(msg.sender));
-        agents[msg.sender] = Agent({
-            isBusy: true,
-            agentsReviews: agentsReviews++,
-            currentTaskId: _taskID,
-            currentTaskType: 0
-        });
-        if (tasksBundle2[_taskId].reviewAgent1 > 0) {
-            if(tasksBundle2[_taskId].reviewAgent2 > 0) {
-                if(tasksBundle2[_taskId].reviewAgent3 > 0) {
+        agents[msg.sender].isBusy = true;
+        agents[msg.sender].agentsReviews++;
+        agents[msg.sender].currentTaskId = _taskID;
+        agents[msg.sender].currentTaskType = false;
+        if (tasksBundle2[_taskID].reviewAgent1 > 0) {
+            if(tasksBundle2[_taskID].reviewAgent2 > 0) {
+                if(tasksBundle2[_taskID].reviewAgent3 > 0) {
                     return false;
                 } else {
-                    tasksBundle2[_taskId].reviewAgent3 = msg.sender;
+                    tasksBundle2[_taskID].reviewAgent3 = msg.sender;
                 }   
             } else {
-                tasksBundle2[_taskId].reviewAgent2 = msg.sender;
+                tasksBundle2[_taskID].reviewAgent2 = msg.sender;
             }
         } else {
-            tasksBundle2[_taskId].reviewAgent1 = msg.sender;
+            tasksBundle2[_taskID].reviewAgent1 = msg.sender;
         }
-        tasksBundle2[_taskId].lastUpdateTimestamp = now;
+        tasksBundle1[_taskID].lastUpdateTimestamp = now;
         agentUpdateOnline(msg.sender);
         emit SUCCESS("agentAccountUpdated");
     }
@@ -264,7 +260,7 @@ contract Mentat {
         agents[agent].lastActionTimestamp = now;
     }
 
-    function agentIsBusy(address agent)
+    function agentIsBusy(address agent) view
     internal
     returns (bool)
     {
