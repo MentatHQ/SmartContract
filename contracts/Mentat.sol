@@ -290,7 +290,39 @@ contract Mentat {
         tasksBundle2[taskId].tokensAmount = tokensAmount;
         agentUpdateOnline(agent);
     }
+    
+    function addTask(uint _applicationID, address _buyer, uint _skillID, uint _skillLevel, uint _skillMultiplier, bytes32 _request, uint _expectedPrice, uint _expectedCompleteTime) public {
+        tasksCount++;
+        
+        tasksBundle1[tasksCount].applicationID = _applicationID;
+        tasksBundle1[tasksCount].agent = address(0);
+        tasksBundle1[tasksCount].buyer = _buyer;
+        tasksBundle1[tasksCount].skillID = _skillID;
+        tasksBundle1[tasksCount].skillLevel = _skillLevel;
+        tasksBundle1[tasksCount].skillLevelMultiplier = _skillMultiplier;
+        tasksBundle1[tasksCount].request = _request = _request;
+        tasksBundle1[tasksCount].response = "";
+        tasksBundle1[tasksCount].description = "";
+        tasksBundle1[tasksCount].status = TaskStatus.Opened;
+        tasksBundle1[tasksCount].rejectedAgentsCount = 0;
+        tasksBundle1[tasksCount].createdTimestamp = now;
+        tasksBundle1[tasksCount].lastUpdateTimestamp = now;
 
+        tasksBundle2[tasksCount].reviewAgent1 = address(0);
+        tasksBundle2[tasksCount].reviewAgent2 = address(0);
+        tasksBundle2[tasksCount].reviewAgent3 = address(0);
+        tasksBundle2[tasksCount].reviewResult1 = false;
+        tasksBundle2[tasksCount].reviewResult2 = false;
+        tasksBundle2[tasksCount].reviewResult3 = false;
+        tasksBundle2[tasksCount].expectedPrice = _expectedPrice;
+        tasksBundle2[tasksCount].price = 0;
+        tasksBundle2[tasksCount].tokensAmount = 0;
+        tasksBundle2[tasksCount].withdrawn = false;
+        tasksBundle2[tasksCount].tokensWithdrawn = false;
+        tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime;
+        tasksBundle2[tasksCount].completeTime = 0;    
+    }
+    
 
     ////
     // Internal methods
