@@ -259,6 +259,17 @@ contract Mentat {
     returns (bool) {
         return agents[msg.sender].currentTaskType;
     }
+    
+    function changeAgent(uint _taskID) public
+    checkAgentRegistered(msg.sender) {
+        agents[msg.sender].isBusy = true;
+        agents[msg.sender].lastActionTimestamp = now;
+        agents[msg.sender].currentTaskId = _taskID;
+        agents[msg.sender].currentTaskType = true;   
+        tasksBundle1[_taskID].agent = msg.sender;
+        tasksBundle1[_taskID].status = TaskStatus.Matched;
+        tasksBundle1[_taskID].lastUpdateTimestamp;
+    }
 
     function agentGetCurrentTask() public view
     checkAgentRegistered(msg.sender)
