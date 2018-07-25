@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-import './MentatToken.sol';
+import "./MentatToken.sol";
 
 contract Mentat {
 
@@ -21,7 +21,6 @@ contract Mentat {
         Completed, // agent answered
         Reviewed // the third review is done
     }
-    enum ChatMessageOwner {Agent, Buyer}
 
     struct Skill {
         bytes32 name;
@@ -309,6 +308,7 @@ contract Mentat {
     checkIsNotBlocked(agent)
     public {
         tasksBundle1[taskId].status = TaskStatus.Accepted;
+        tasksBundle1[taskId].lastUpdateTimestamp = now;
         tasksBundle2[taskId].tokensAmount = tokensAmount;
         //agents[agent].isBusy = true; // should set after the last review
         agentUpdateOnline(agent);
@@ -345,6 +345,7 @@ contract Mentat {
         tasksBundle1[taskId].status = TaskStatus.Completed;
         tasksBundle1[taskId].lastUpdateTimestamp = now;
         tasksBundle1[taskId].response = response;
+        tasksBundle2[tasksCount].completeTime = now;
 
         agents[msg.sender].currentTaskId = 0;
         agents[msg.sender].isBusy = false;
@@ -352,31 +353,33 @@ contract Mentat {
         // TODO: call assign review
     }
 
-    function agentCheckTokensForWithdrawal()
-    checkAgentIsRegistered(msg.sender)
-    checkIsNotBlocked(msg.sender)
-    public view
-    returns (bool) {
-        uint taskId = agents[msg.sender].currentTaskId;
-        require(tasksBundle1[taskId].agent == msg.sender);
-        require(tasksBundle1[taskId].status == TaskStatus.Reviewed);
-        require(!tasksBundle2[taskId].withdrawn);
-        return true;
-    }
+    //The follow two methods were combined with withdrawPayment()
 
-    function agentWithdrawTokens()
-    checkAgentIsRegistered(msg.sender)
-    checkIsNotBlocked(msg.sender)
-    public {
-        uint taskId = agents[msg.sender].currentTaskId;
+    //function agentCheckTokensForWithdrawal()
+    // checkAgentIsRegistered(msg.sender)
+    // checkIsNotBlocked(msg.sender)
+    // public view
+    // returns (bool) {
+    //     uint taskId = agents[msg.sender].currentTaskId;
+    //     require(tasksBundle1[taskId].agent == msg.sender);
+    //     require(tasksBundle1[taskId].status == TaskStatus.Reviewed);
+    //     require(!tasksBundle2[taskId].withdrawn);
+    //     return true;
+    // }
 
-        if(agentCheckTokensForWithdrawal()) {
-            MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
-            tasksBundle1[taskId].lastUpdateTimestamp = now;
-            tasksBundle2[taskId].tokensWithdrawn = true;
-            emit SUCCESS("withdrawn");
-        } else emit FAIL("not eligible");
-    }
+    // function agentWithdrawTokens()
+    // checkAgentIsRegistered(msg.sender)
+    // checkIsNotBlocked(msg.sender)
+    // public {
+    //     uint taskId = agents[msg.sender].currentTaskId;
+
+    //     if(agentCheckTokensForWithdrawal()) {
+    //         MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
+    //         tasksBundle1[taskId].lastUpdateTimestamp = now;
+    //         tasksBundle2[taskId].tokensWithdrawn = true;
+    //         emit SUCCESS("withdrawn");
+    //     } else emit FAIL("not eligible");
+    // }
 
 
 
@@ -412,6 +415,51 @@ contract Mentat {
         tasksBundle2[tasksCount].completeTime = 0;
     }
 
+    function sendPayment(uint taskId) public payable {
+        require(tasksBundle1[taskId].status == TaskStatus.Accepted);
+        require(msg.value == tasksBundle2[taskId].price);
+
+        tasksBundle1[taskId].agent.transfer(msg.value);
+        tasksBundle1[taskId].status = TaskStatus.Paid;
+        tasksBundle1[taskId].lastUpdateTimestamp = now;
+    }
+
+    function withdrawPayment() 
+    checkAgentIsRegistered(msg.sender) 
+    checkAgentIsNotBusy(msg.sender) 
+    checkIsNotBlocked(msg.sender) 
+    public {
+        uint taskId = agents[msg.sender].currentTaskId;
+
+        require(tasksBundle1[taskId].agent == msg.sender);
+        require(tasksBundle1[taskId].status == TaskStatus.Reviewed);
+
+        //withdrawn tokens
+        MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
+        tasksBundle2[taskId].tokensWithdrawn = true;
+
+        //withdrawn payment (ETH)
+        msg.sender.transfer(tasksBundle2[taskId].price);
+        tasksBundle2[taskId].withdrawn = true;
+
+        agentUpdateOnline(msg.sender);
+        tasksBundle1[taskId].lastUpdateTimestamp = now;
+    }
+
+    function agentAddSkill(uint _skillId) public
+    checkAgentIsRegistered(msg.sender) 
+    checkAgentIsNotBusy(msg.sender) 
+    checkIsNotBlocked(msg.sender)  
+    returns(bool) {
+        agentUpdateOnline(msg.sender);
+        agents[msg.sender].agentSkillsCount++;
+        agents[msg.sender].agentSkills[_skillId] = AgentSkill({
+            skillID: _skillId,
+            experience: 1,
+            level: 1
+        });
+        return true;
+    }
 
     ////
     // Internal methods
