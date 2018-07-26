@@ -25,6 +25,7 @@ contract Mentat {
     struct Skill {
         bytes32 name;
         SkillType skill;
+        uint skillLevelMultiplier;
         mapping(uint => address) agents;
         uint agentsCount;
     }
@@ -52,7 +53,6 @@ contract Mentat {
 
     struct AgentSkill {
         uint skillID;
-        uint experience;
         uint level;
     }
 
@@ -62,7 +62,7 @@ contract Mentat {
         address buyer;
         uint skillID;
         uint skillLevel;
-        uint skillLevelMultiplier;
+        uint experience;
         bytes32 request;
         bytes32 response;
         bytes32 description;
@@ -353,36 +353,6 @@ contract Mentat {
         // TODO: call assign review
     }
 
-    //The follow two methods were combined with withdrawPayment()
-
-    //function agentCheckTokensForWithdrawal()
-    // checkAgentIsRegistered(msg.sender)
-    // checkIsNotBlocked(msg.sender)
-    // public view
-    // returns (bool) {
-    //     uint taskId = agents[msg.sender].currentTaskId;
-    //     require(tasksBundle1[taskId].agent == msg.sender);
-    //     require(tasksBundle1[taskId].status == TaskStatus.Reviewed);
-    //     require(!tasksBundle2[taskId].withdrawn);
-    //     return true;
-    // }
-
-    // function agentWithdrawTokens()
-    // checkAgentIsRegistered(msg.sender)
-    // checkIsNotBlocked(msg.sender)
-    // public {
-    //     uint taskId = agents[msg.sender].currentTaskId;
-
-    //     if(agentCheckTokensForWithdrawal()) {
-    //         MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
-    //         tasksBundle1[taskId].lastUpdateTimestamp = now;
-    //         tasksBundle2[taskId].tokensWithdrawn = true;
-    //         emit SUCCESS("withdrawn");
-    //     } else emit FAIL("not eligible");
-    // }
-
-
-
     function addTask(uint _applicationID, address _buyer, uint _skillID, uint _skillLevel, uint _skillMultiplier, bytes32 _request, uint _expectedPrice, uint _expectedCompleteTime) public {
         tasksCount++;
 
@@ -391,7 +361,6 @@ contract Mentat {
         tasksBundle1[tasksCount].buyer = _buyer;
         tasksBundle1[tasksCount].skillID = _skillID;
         tasksBundle1[tasksCount].skillLevel = _skillLevel;
-        tasksBundle1[tasksCount].skillLevelMultiplier = _skillMultiplier;
         tasksBundle1[tasksCount].request = _request = _request;
         tasksBundle1[tasksCount].response = "";
         tasksBundle1[tasksCount].description = "";
@@ -455,7 +424,6 @@ contract Mentat {
         agents[msg.sender].agentSkillsCount++;
         agents[msg.sender].agentSkills[_skillId] = AgentSkill({
             skillID: _skillId,
-            experience: 1,
             level: 1
         });
         return true;
