@@ -23,11 +23,10 @@ contract Mentat {
     }
 
     struct Skill {
+        uint skillID;
         bytes32 name;
         SkillType skill;
         uint skillLevelMultiplier;
-        mapping(uint => address) agents;
-        uint agentsCount;
     }
 
     mapping(uint => Skill) public skills;
@@ -385,7 +384,7 @@ contract Mentat {
     }
 
     function sendPayment(uint taskId) public payable {
-        require(tasksBundle1[taskId].status == TaskStatus.Accepted);
+        require(tasksBundle1[taskId].status == TaskStatus.Opened);
         require(msg.value == tasksBundle2[taskId].price);
 
         tasksBundle1[taskId].agent.transfer(msg.value);
@@ -422,11 +421,34 @@ contract Mentat {
     returns(bool) {
         agentUpdateOnline(msg.sender);
         agents[msg.sender].agentSkillsCount++;
-        agents[msg.sender].agentSkills[_skillId] = AgentSkill({
+        uint agentSkillsCount = agents[msg.sender].agentSkillsCount;
+        agents[msg.sender].agentSkills[agentSkillsCount] = AgentSkill({
             skillID: _skillId,
             level: 1
         });
         return true;
+    }
+
+    function getAgentSkills(address agent) public
+    checkAgentIsRegistered(msg.sender) 
+    checkAgentIsNotBusy(msg.sender) 
+    checkIsNotBlocked(msg.sender)
+    returns(uint[]) {
+        uint[] ids;
+        uint agentSkillsCount = agents[agent].agentSkillsCount;
+        for (uint i = 0; i < agentSkillsCount; i++) {
+            ids.push(agents[agent].agentSkills[i].skillID);
+        }
+        return ids;    
+    }
+
+    function createSkill(uint _skillID, bytes32 _name, SkillType _skill, uint _skillLevelMultiplier) public {
+        skillsCount++;
+        
+        skills[skillsCount].skillID = _skillID;
+        skills[skillsCount].name = _name;
+        skills[skillsCount].skill = _skill;
+        skills[skillsCount].skillLevelMultiplier = _skillLevelMultiplier;
     }
 
     ////
