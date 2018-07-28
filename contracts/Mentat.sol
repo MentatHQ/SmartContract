@@ -27,6 +27,8 @@ contract Mentat {
         bytes32 name;
         SkillType skill;
         uint skillLevelMultiplier;
+        mapping(uint => address) agents;
+        uint agentsCount;
     }
 
     mapping(uint => Skill) public skills;
@@ -56,7 +58,6 @@ contract Mentat {
     }
 
     struct TaskBundle1 {
-        uint applicationID;
         address agent;
         address buyer;
         uint skillID;
@@ -94,9 +95,10 @@ contract Mentat {
 
     struct Application {
         bytes32 name;
+        uint registrationTimestamp;
     }
 
-    mapping(uint => Application) public applications;
+    mapping(address => Application) public applications;
     uint public applicationsCount;
 
     ////
@@ -122,6 +124,16 @@ contract Mentat {
 
     modifier onlyOwner() {
         require(msg.sender == owner);
+        _;
+    }
+
+    modifier checkAppIsRegistered(address _address) {
+        require(applications[_address].registrationTimestamp > 0);
+        _;
+    }
+
+    modifier isNotAppRegistered(address _address) {
+        require(applications[_address].registrationTimestamp == 0);
         _;
     }
 
@@ -295,8 +307,8 @@ contract Mentat {
         taskType = agents[msg.sender].currentTaskType;
         taskId = agents[msg.sender].currentTaskId;
         require(taskId > 0);
-        uint applicationId = tasksBundle1[taskId].applicationID;
-        applicationName = applications[applicationId].name;
+        address buyer = tasksBundle1[taskId].buyer;
+        applicationName = applications[buyer].name;
         description = tasksBundle1[taskId].description;
         return;
     }
@@ -352,10 +364,11 @@ contract Mentat {
         // TODO: call assign review
     }
 
-    function addTask(uint _applicationID, address _buyer, uint _skillID, uint _skillLevel, uint _skillMultiplier, bytes32 _request, uint _expectedPrice, uint _expectedCompleteTime) public {
+    function addTask(uint _applicationID, address _buyer, uint _skillID, uint _skillLevel, uint _skillMultiplier, bytes32 _request, uint _expectedPrice, uint _expectedCompleteTime) 
+    checkAppIsRegistered(msg.sender) 
+    public {
         tasksCount++;
 
-        tasksBundle1[tasksCount].applicationID = _applicationID;
         tasksBundle1[tasksCount].agent = address(0);
         tasksBundle1[tasksCount].buyer = _buyer;
         tasksBundle1[tasksCount].skillID = _skillID;
@@ -383,13 +396,18 @@ contract Mentat {
         tasksBundle2[tasksCount].completeTime = 0;
     }
 
-    function sendPayment(uint taskId) public payable {
+    function sendPayment(uint taskId) public 
+    checkAppIsRegistered(msg.sender) 
+    payable {
         require(tasksBundle1[taskId].status == TaskStatus.Opened);
+        require(tasksBundle1[taskId].buyer == msg.sender);
         require(msg.value == tasksBundle2[taskId].price);
 
-        tasksBundle1[taskId].agent.transfer(msg.value);
+        msg.sender.transfer(msg.value);
         tasksBundle1[taskId].status = TaskStatus.Paid;
         tasksBundle1[taskId].lastUpdateTimestamp = now;
+
+        //Call assignTask()
     }
 
     function withdrawPayment() 
@@ -426,6 +444,10 @@ contract Mentat {
             skillID: _skillId,
             level: 1
         });
+        
+        uint agentsCount = skills[_skillId].agentsCount;
+        skills[_skillId].agents[agentsCount] = msg.sender;
+        skills[_skillId].agentsCount++;
         return true;
     }
 
@@ -442,13 +464,33 @@ contract Mentat {
         return ids;    
     }
 
-    function createSkill(uint _skillID, bytes32 _name, SkillType _skill, uint _skillLevelMultiplier) public {
+    function createSkill(uint _skillID, bytes32 _name, uint _skillLevelMultiplier) 
+    checkAppIsRegistered(msg.sender) 
+    public {
         skillsCount++;
         
         skills[skillsCount].skillID = _skillID;
         skills[skillsCount].name = _name;
-        skills[skillsCount].skill = _skill;
+        skills[skillsCount].skill = SkillType.Skill;
         skills[skillsCount].skillLevelMultiplier = _skillLevelMultiplier;
+    }
+
+    function createExpertise(uint _skillID, bytes32 _name, uint _skillLevelMultiplier) public {
+        skillsCount++;
+        
+        skills[skillsCount].skillID = _skillID;
+        skills[skillsCount].name = _name;
+        skills[skillsCount].skill = SkillType.Expertise;
+        skills[skillsCount].skillLevelMultiplier = _skillLevelMultiplier;
+    }    
+
+    function appSignUp(bytes32 _name) isNotAppRegistered(msg.sender) public {
+        applications[msg.sender] = Application({
+            name: _name,
+            registrationTimestamp: now
+        });
+
+        applicationsCount++;
     }
 
     ////
@@ -465,6 +507,64 @@ contract Mentat {
     returns (bool)
     {
         return (agents[agent].isBusy);
+    }
+
+    function assignTask(uint taskID) 
+    internal {
+        require(tasksBundle1[taskID].status == TaskStatus.Paid);
+
+        uint skillID = tasksBundle1[taskID].skillID;
+        uint agentsCount = skills[skillID].agentsCount;
+        for (uint i = 0; i < agentsCount; i++) {
+            //check for agents with the right skill
+            if(skills[skillID].agents[i] != address(0)) {
+                //check for agents with the right skill level
+                if(agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
+                    //check for agents online
+                    if(isAgentOnline(skills[skillID].agents[i])) {
+                        //check for agents not busy
+                        if (agentIsBusy(skills[skillID].agents[i]) == false) {
+                            //match an agent
+                            tasksBundle1[taskID].agent = skills[skillID].agents[i];
+                            tasksBundle1[taskID].status = TaskStatus.Matched;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function assignReview(uint taskID) 
+    internal {
+        require(tasksBundle1[taskID].status == TaskStatus.Completed);
+
+        uint skillID = tasksBundle1[taskID].skillID;
+        uint agentsCount = skills[skillID].agentsCount;
+        for (uint ii = 0; ii < 3; ii++) {
+            for (uint i = 0; i < agentsCount; i++) {
+                //check for agents with the right skill
+                if(skills[skillID].agents[i] != address(0)) {
+                    //check for agents with the right skill level
+                    if(agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
+                        //check for agents online
+                        if(isAgentOnline(skills[skillID].agents[i])) {
+                            //check for agents not busy
+                            if (agentIsBusy(skills[skillID].agents[i]) == false) {
+                                //match an agent
+                                if (tasksBundle2[taskID].reviewAgent1 == address(0)) {
+                                    tasksBundle2[taskID].reviewAgent1 = skills[skillID].agents[i];
+                                } else if (tasksBundle2[taskID].reviewAgent2 == address(0)) {
+                                    tasksBundle2[taskID].reviewAgent2 = skills[skillID].agents[i];
+                                } else if (tasksBundle2[taskID].reviewAgent3 == address(0)) {
+                                    tasksBundle2[taskID].reviewAgent3 = skills[skillID].agents[i];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
 }
