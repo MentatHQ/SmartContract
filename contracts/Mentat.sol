@@ -46,7 +46,7 @@ contract Mentat {
         uint tasksRejected;
         uint agentsReviews;
         uint currentTaskId;
-        bool currentTaskType; // 1 - task, 0 - review
+        bool currentTaskType; // true - task, false - review
         uint blockedUntilTimestamp;
     }
 
@@ -65,9 +65,7 @@ contract Mentat {
         uint experience;
         bytes32 request;
         bytes32 response;
-        bytes32 description;
         TaskStatus status;
-        mapping(uint => address) rejectedAgents;
         uint rejectedAgentsCount;
         uint createdTimestamp;  //DateTime
         uint lastUpdateTimestamp; //DateTime
@@ -77,16 +75,17 @@ contract Mentat {
         address reviewAgent1;
         address reviewAgent2;
         address reviewAgent3;
-        bool reviewResult1;
-        bool reviewResult2;
-        bool reviewResult3;
+        bool reviewResult1; //true - approved, false - denied
+        bool reviewResult2; //true - approved, false - denied
+        bool reviewResult3; //true - approved, false - denied
+        uint approvedCount;
         uint expectedPrice;
-        uint price;
+        uint price; //per minute
         uint tokensAmount;
         bool withdrawn;
         bool tokensWithdrawn;
-        uint expectedCompleteTime;  //DateTime
-        uint completeTime;  //DateTime
+        uint expectedCompleteTime;  //Duration in seconds
+        uint completeTime;  //Duration seconds
     }
 
     mapping(uint => TaskBundle1) public tasksBundle1;
@@ -264,12 +263,21 @@ contract Mentat {
                     return false;
                 } else {
                     tasksBundle2[_taskID].reviewResult3 = _result;
+                    if (_result == true) {
+                        tasksBundle2[_taskID].approvedCount++;
+                    }
                 }
             } else {
                 tasksBundle2[_taskID].reviewResult2 = _result;
+                if (_result == true) {
+                    tasksBundle2[_taskID].approvedCount++;
+                }
             }
         } else {
             tasksBundle2[_taskID].reviewResult1 = _result;
+            if (_result == true) {
+                tasksBundle2[_taskID].approvedCount++;
+            }
         }
         tasksBundle1[_taskID].lastUpdateTimestamp = now;
         tasksBundle1[_taskID].status = TaskStatus.Reviewed;
@@ -303,13 +311,12 @@ contract Mentat {
     checkAgentIsRegistered(msg.sender)
     checkAgentIsNotBusy(msg.sender)
     checkIsNotBlocked(msg.sender)
-    returns (uint taskId, bool taskType, bytes32 applicationName, bytes32 description) {
+    returns (uint taskId, bool taskType, bytes32 applicationName) {
         taskType = agents[msg.sender].currentTaskType;
         taskId = agents[msg.sender].currentTaskId;
         require(taskId > 0);
         address buyer = tasksBundle1[taskId].buyer;
         applicationName = applications[buyer].name;
-        description = tasksBundle1[taskId].description;
         return;
     }
 
@@ -318,6 +325,9 @@ contract Mentat {
     checkAgentIsNotBusy(agent)
     checkIsNotBlocked(agent)
     public {
+        require(tasksBundle1[taskId].agent == msg.sender);
+        
+        agents[msg.sender].currentTaskType = true;
         tasksBundle1[taskId].status = TaskStatus.Accepted;
         tasksBundle1[taskId].lastUpdateTimestamp = now;
         tasksBundle2[taskId].tokensAmount = tokensAmount;
@@ -329,6 +339,7 @@ contract Mentat {
     checkAgentIsNotBusy(msg.sender)
     checkIsNotBlocked(msg.sender)
     public {
+        require(tasksBundle1[taskId].agent == msg.sender);
         agentUpdateOnline(msg.sender);
         uint taskId = agents[msg.sender].currentTaskId;
 
@@ -341,7 +352,7 @@ contract Mentat {
             agents[msg.sender].blockedUntilTimestamp = now + 1 hours;
         }
 
-        //TODO call assign task to new agent
+        //TODO call assign task to new agent (make sure it doesn't re-assign to this agent)
     }
 
     function completeTask(bytes32 response)
@@ -358,24 +369,30 @@ contract Mentat {
         tasksBundle1[taskId].response = response;
         tasksBundle2[tasksCount].completeTime = now;
 
-        agents[msg.sender].currentTaskId = 0;
-        agents[msg.sender].isBusy = false;
+        //assign all overtime tasks and 20% of non-overtime tasks for review
+        if (tasksBundle1[taskId].createdTimestamp - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime || taskId % 5 == 0) {
+            assignReview(taskId);
+            agents[msg.sender].currentTaskId = 0;
+            agents[msg.sender].isBusy = false;
+        } else {
+            agents[msg.sender].currentTaskId = 0;
+            agents[msg.sender].isBusy = false;
+            tasksBundle1[taskId].status = TaskStatus.Reviewed;
+        }
 
-        // TODO: call assign review
     }
 
-    function addTask(uint _applicationID, address _buyer, uint _skillID, uint _skillLevel, uint _skillMultiplier, bytes32 _request, uint _expectedPrice, uint _expectedCompleteTime) 
+    function addTask(uint _skillID, uint _skillLevel, uint _price, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
     public {
         tasksCount++;
 
         tasksBundle1[tasksCount].agent = address(0);
-        tasksBundle1[tasksCount].buyer = _buyer;
+        tasksBundle1[tasksCount].buyer = msg.sender;
         tasksBundle1[tasksCount].skillID = _skillID;
         tasksBundle1[tasksCount].skillLevel = _skillLevel;
         tasksBundle1[tasksCount].request = _request = _request;
         tasksBundle1[tasksCount].response = "";
-        tasksBundle1[tasksCount].description = "";
         tasksBundle1[tasksCount].status = TaskStatus.Opened;
         tasksBundle1[tasksCount].rejectedAgentsCount = 0;
         tasksBundle1[tasksCount].createdTimestamp = now;
@@ -387,8 +404,9 @@ contract Mentat {
         tasksBundle2[tasksCount].reviewResult1 = false;
         tasksBundle2[tasksCount].reviewResult2 = false;
         tasksBundle2[tasksCount].reviewResult3 = false;
-        tasksBundle2[tasksCount].expectedPrice = _expectedPrice;
-        tasksBundle2[tasksCount].price = 0;
+        tasksBundle2[tasksCount].approvedCount = 0;
+        tasksBundle2[tasksCount].expectedPrice = _expectedCompleteTime * _price;
+        tasksBundle2[tasksCount].price = _price;
         tasksBundle2[tasksCount].tokensAmount = 0;
         tasksBundle2[tasksCount].withdrawn = false;
         tasksBundle2[tasksCount].tokensWithdrawn = false;
@@ -408,6 +426,7 @@ contract Mentat {
         tasksBundle1[taskId].lastUpdateTimestamp = now;
 
         //Call assignTask()
+        assignTask(taskId);
     }
 
     function withdrawPayment() 
@@ -420,9 +439,11 @@ contract Mentat {
         require(tasksBundle1[taskId].agent == msg.sender);
         require(tasksBundle1[taskId].status == TaskStatus.Reviewed);
 
-        //withdrawn tokens
-        MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
-        tasksBundle2[taskId].tokensWithdrawn = true;
+        //withdrawn tokens, only if 2/3 reviews are positive
+        if (tasksBundle2[taskId].approvedCount >= 2) {
+            MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
+            tasksBundle2[taskId].tokensWithdrawn = false;
+        }
 
         //withdrawn payment (ETH)
         msg.sender.transfer(tasksBundle2[taskId].price);
@@ -451,34 +472,37 @@ contract Mentat {
         return true;
     }
 
-    function getAgentSkills(address agent) public
-    checkAgentIsRegistered(msg.sender) 
-    checkAgentIsNotBusy(msg.sender) 
-    checkIsNotBlocked(msg.sender)
-    returns(uint[]) {
-        uint[] ids;
-        uint agentSkillsCount = agents[agent].agentSkillsCount;
-        for (uint i = 0; i < agentSkillsCount; i++) {
-            ids.push(agents[agent].agentSkills[i].skillID);
-        }
-        return ids;    
-    }
+    //Need to do some research for this task. Iteration may need to happen from front-end side.
 
-    function createSkill(uint _skillID, bytes32 _name, uint _skillLevelMultiplier) 
+    // function getAgentSkills(address agent) public
+    // checkAgentIsRegistered(msg.sender) 
+    // checkAgentIsNotBusy(msg.sender) 
+    // checkIsNotBlocked(msg.sender)
+    // returns(AgentSkill[]) {
+    //     AgentSkill[] agentSkillsArray;
+    //     uint agentSkillsCount = agents[agent].agentSkillsCount;
+    //     for (uint i = 0; i < agentSkillsCount; i++) {
+    //         AgentSkill memory newAgentSkill = agents[agent].agentSkills[i];
+    //         agentSkillsArray.push(newAgentSkill);
+    //     }
+    //     return agentSkillsArray;    
+    // }
+
+    function createSkill(bytes32 _name, uint _skillLevelMultiplier) 
     checkAppIsRegistered(msg.sender) 
     public {
         skillsCount++;
         
-        skills[skillsCount].skillID = _skillID;
+        skills[skillsCount].skillID = skillsCount;
         skills[skillsCount].name = _name;
         skills[skillsCount].skill = SkillType.Skill;
         skills[skillsCount].skillLevelMultiplier = _skillLevelMultiplier;
     }
 
-    function createExpertise(uint _skillID, bytes32 _name, uint _skillLevelMultiplier) public {
+    function createExpertise(bytes32 _name, uint _skillLevelMultiplier) public {
         skillsCount++;
         
-        skills[skillsCount].skillID = _skillID;
+        skills[skillsCount].skillID = skillsCount;
         skills[skillsCount].name = _name;
         skills[skillsCount].skill = SkillType.Expertise;
         skills[skillsCount].skillLevelMultiplier = _skillLevelMultiplier;
@@ -515,6 +539,7 @@ contract Mentat {
 
         uint skillID = tasksBundle1[taskID].skillID;
         uint agentsCount = skills[skillID].agentsCount;
+        uint highestBalance = 0;
         for (uint i = 0; i < agentsCount; i++) {
             //check for agents with the right skill
             if(skills[skillID].agents[i] != address(0)) {
@@ -524,10 +549,13 @@ contract Mentat {
                     if(isAgentOnline(skills[skillID].agents[i])) {
                         //check for agents not busy
                         if (agentIsBusy(skills[skillID].agents[i]) == false) {
-                            //match an agent
-                            tasksBundle1[taskID].agent = skills[skillID].agents[i];
-                            tasksBundle1[taskID].status = TaskStatus.Matched;
-                            break;
+                            //match the agent with the highest token balance
+                            uint tokenBalance = MentatToken(mentatToken).balanceOf(skills[skillID].agents[i]);
+                            if (tokenBalance > highestBalance) {
+                                highestBalance = tokenBalance;
+                                tasksBundle1[taskID].agent = skills[skillID].agents[i];
+                                tasksBundle1[taskID].status = TaskStatus.Matched;
+                            }
                         }
                     }
                 }
