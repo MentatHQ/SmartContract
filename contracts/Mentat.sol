@@ -9,6 +9,7 @@ contract Mentat {
     ///////////////////////////////
 
     uint taskRejectionsLimit = 3;
+    uint minimumWage = 20 finney; //0.02 ETH
     address public owner;  // contract´s creator
     address public mentatToken;
     enum SkillType {Skill, Expertise}
@@ -27,7 +28,7 @@ contract Mentat {
         bytes32 name;
         SkillType skill;
         uint skillLevelMultiplier;
-        mapping(uint => address) agents;
+        mapping(uint => address) agents; //agents who have joined this pool
         uint agentsCount;
     }
 
@@ -40,6 +41,7 @@ contract Mentat {
         bool isBusy;
         mapping(uint => AgentSkill) agentSkills;
         uint agentSkillsCount;
+        bool inPool;
         uint registrationTimestamp; // DateTime
         uint lastActionTimestamp; //DateTime
         uint tasksCompleted;
@@ -81,12 +83,13 @@ contract Mentat {
         bool reviewResult2; //true - approved, false - denied
         bool reviewResult3; //true - approved, false - denied
         uint approvedCount;
-        uint expectedPrice;
+        uint expectedPrice; //per minute
         uint price; //per minute
         uint tokensAmount;
         bool withdrawn;
         bool tokensWithdrawn;
-        address[] alternateAgents; //agents who also quality to complete this task
+        mapping(uint => address) eligibleAgents; //agents who quality to complete this task
+        uint eligibleAgentsCount;
         uint expectedCompleteTime;  //Duration in seconds
         uint completeTime;  //Duration seconds
     }
@@ -193,6 +196,7 @@ contract Mentat {
             email : _email,
             isBusy : false,
             agentSkillsCount : 0,
+            inPool: false,
             registrationTimestamp : now,
             lastActionTimestamp : now,
             tasksCompleted : 0,
@@ -444,12 +448,14 @@ contract Mentat {
         if (tasksBundle2[taskId].approvedCount >= 2) {
             MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
         } else {
-            //redistribute tokens to alternateAgents
+            //redistribute tokens to eligibleAgents except msg.sender
             uint totalTokens = tasksBundle2[taskId].tokensAmount;
-            uint alternateAgentsCount = tasksBundle2[taskId].alternateAgents.length;
-            uint tokensAmount = totalTokens / alternateAgentsCount;
-            for (uint i = 0; i < alternateAgentsCount; i++) {
-                MentatToken(mentatToken).transfer(tasksBundle2[taskId].alternateAgents[i], tokensAmount);
+            uint eligibleAgentsCount = tasksBundle2[taskId].eligibleAgentsCount;
+            uint tokensAmount = totalTokens / eligibleAgentsCount;
+            for (uint i = 1; i <= eligibleAgentsCount; i++) {
+                if (tasksBundle2[taskId].eligibleAgents[i] != msg.sender) {
+                    MentatToken(mentatToken).transfer(tasksBundle2[taskId].eligibleAgents[i], tokensAmount);
+                }
             }
         }
 
@@ -476,21 +482,18 @@ contract Mentat {
             skill: skills[_skillId].skill
         });
         
-        uint agentsCount = skills[_skillId].agentsCount;
-        skills[_skillId].agents[agentsCount] = msg.sender;
-        skills[_skillId].agentsCount++;
         return true;
     }
 
     function getAgentSkills(address agent) view
     checkAgentIsRegistered(msg.sender) 
-    checkAgentIsNotBusy(msg.sender) 
-    checkIsNotBlocked(msg.sender)
-    public {
+    public returns (uint[]) {
+        uint[] agentSkillsArray;
         uint agentSkillsCount = agents[agent].agentSkillsCount;
-        for (uint i = 0; i < agentSkillsCount; i++) {
-            getSkillData(agents[agent].agentSkills[i].skillID);
-        }   
+        for (uint i = 1; i <= agentSkillsCount; i++) {
+            agentSkillsArray.push(agents[agent].agentSkills[i].skillID);
+        }
+        return agentSkillsArray;   
     }
 
     function createSkill(bytes32 _name, uint _skillLevelMultiplier) 
@@ -522,6 +525,40 @@ contract Mentat {
         applicationsCount++;
     }
 
+    function getSkillData(uint skillID) view
+    checkAgentIsRegistered(msg.sender) 
+    public returns(uint, bytes32, SkillType) {
+        return(agents[msg.sender].agentSkills[skillID].level, agents[msg.sender].agentSkills[skillID].name, agents[msg.sender].agentSkills[skillID].skill);
+    }
+
+    function joinPool(uint skillID)
+    checkAgentIsRegistered(msg.sender)
+    public {
+        require(agents[msg.sender].agentSkills[skillID].skillID == skillID);
+        require(agents[msg.sender].inPool = false);
+
+        skills[skillID].agentsCount++;
+        uint agentsCount = skills[skillID].agentsCount;
+        skills[skillID].agents[agentsCount] == msg.sender;
+        agents[msg.sender].inPool = true;
+    }
+
+    function leavePool(uint skillID)
+    checkAgentIsRegistered(msg.sender)
+    public {
+        require(agents[msg.sender].agentSkills[skillID].skillID == skillID);
+        require(agents[msg.sender].inPool = true);
+
+        uint agentsCount = skills[skillID].agentsCount;
+        for (uint i = 1; i <= agentsCount; i++) {
+            if (skills[skillID].agents[i] == msg.sender) {
+                delete skills[skillID].agents[i];
+                skills[skillID].agentsCount--;
+                agents[msg.sender].inPool = false;
+            }
+        }
+    }
+
     ////
     // Internal methods
     ///////////////
@@ -545,14 +582,15 @@ contract Mentat {
         uint skillID = tasksBundle1[taskID].skillID;
         uint agentsCount = skills[skillID].agentsCount;
         uint highestBalance = 0;
-        for (uint i = 0; i < agentsCount; i++) {
+        for (uint i = 1; i <= agentsCount; i++) {
             //check for agents with the right skill
             if(skills[skillID].agents[i] != address(0)) {
                 //check for agents with the right skill level
                 if(agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
                     //check for agents online
                     if(isAgentOnline(skills[skillID].agents[i])) {
-                        tasksBundle2[taskID].alternateAgents.push(skills[skillID].agents[i]);
+                        tasksBundle2[taskID].eligibleAgentsCount++;
+                        tasksBundle2[taskID].eligibleAgents[tasksBundle2[taskID].eligibleAgentsCount] = skills[skillID].agents[i];
                         //check for agents not busy
                         if (agentIsBusy(skills[skillID].agents[i]) == false) {
                             //match the agent with the highest token balance
@@ -601,9 +639,10 @@ contract Mentat {
         }
     }
 
-    function getSkillData(uint skillID) view 
-    internal returns(bytes32, SkillType) {
-        return(agents[msg.sender].agentSkills[skillID].name, agents[msg.sender].agentSkills[skillID].skill);
+    function calculatePrice(uint taskID) public {
+        uint eligibleAgentsCount = tasksBundle2[taskID].eligibleAgentsCount;
+        
+        
     }
 
 }
