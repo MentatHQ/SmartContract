@@ -10,6 +10,7 @@ contract Mentat {
 
     uint taskRejectionsLimit = 3;
     uint minimumWage = 20 finney; //0.02 ETH
+    uint capacityPremium = 125;
     address public owner;  // contract´s creator
     address public mentatToken;
     enum SkillType {Skill, Expertise}
@@ -53,6 +54,7 @@ contract Mentat {
     }
 
     mapping(address => Agent) public agents;
+    uint agentsCount;
 
     struct AgentSkill {
         uint skillID;
@@ -88,7 +90,7 @@ contract Mentat {
         uint tokensAmount;
         bool withdrawn;
         bool tokensWithdrawn;
-        mapping(uint => address) eligibleAgents; //agents who quality to complete this task
+        mapping(uint => address) eligibleAgents; //agents who will receive tokens if this tasks is not approved
         uint eligibleAgentsCount;
         uint expectedCompleteTime;  //Duration in seconds
         uint completeTime;  //Duration seconds
@@ -206,6 +208,7 @@ contract Mentat {
             currentTaskType : false,
             blockedUntilTimestamp : 0
             });
+        agentsCount++;    
         emit SUCCESS("signedUp");
     }
 
@@ -353,10 +356,11 @@ contract Mentat {
         agents[msg.sender].currentTaskId = 0;
         agents[msg.sender].tasksRejected += 1;
         tasksBundle1[taskId].rejectedAgentsCount += 1;
+        agents[msg.sender].blockedUntilTimestamp = now + 1 hours;
 
-        if (agents[msg.sender].tasksRejected > taskRejectionsLimit) {
-            agents[msg.sender].tasksRejected = 0;
-            agents[msg.sender].blockedUntilTimestamp = now + 1 hours;
+        if (tasksBundle1[taskId].rejectedAgentsCount == taskRejectionsLimit) {
+            tasksBundle1[taskId].status = TaskStatus.Rejected;
+            //notify buyer that task is rejected
         }
 
         //TODO call assign task to new agent (make sure it doesn't re-assign to this agent)
@@ -579,21 +583,27 @@ contract Mentat {
     internal {
         require(tasksBundle1[taskID].status == TaskStatus.Paid);
 
+        for (uint ii = 0; ii < agentsCount; ii++) {
+            // //check if agent is online
+            // if(isAgentOnline()) {
+            //     tasksBundle2[taskID].eligibleAgentsCount++;
+            //     tasksBundle2[taskID].eligibleAgents[tasksBundle2[taskID].eligibleAgentsCount] = skills[skillID].agents[i];
+            // }
+        }
+
         uint skillID = tasksBundle1[taskID].skillID;
-        uint agentsCount = skills[skillID].agentsCount;
+        uint poolCount = skills[skillID].agentsCount;
         uint highestBalance = 0;
-        for (uint i = 1; i <= agentsCount; i++) {
-            //check for agents with the right skill
+        for (uint i = 1; i <= poolCount; i++) {
+            //Check for agents in the pool
             if(skills[skillID].agents[i] != address(0)) {
-                //check for agents with the right skill level
+                //Check for agents with the right skill level
                 if(agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
-                    //check for agents online
-                    if(isAgentOnline(skills[skillID].agents[i])) {
-                        tasksBundle2[taskID].eligibleAgentsCount++;
-                        tasksBundle2[taskID].eligibleAgents[tasksBundle2[taskID].eligibleAgentsCount] = skills[skillID].agents[i];
-                        //check for agents not busy
+                    //Check for agents online
+                    if(isAgentOnline(skills[skillID].agents[i]) == true) {
+                        //Check for agents not busy
                         if (agentIsBusy(skills[skillID].agents[i]) == false) {
-                            //match the agent with the highest token balance
+                            //Match the agent with the highest token balance
                             uint tokenBalance = MentatToken(mentatToken).balanceOf(skills[skillID].agents[i]);
                             if (tokenBalance > highestBalance) {
                                 highestBalance = tokenBalance;
@@ -612,18 +622,18 @@ contract Mentat {
         require(tasksBundle1[taskID].status == TaskStatus.Completed);
 
         uint skillID = tasksBundle1[taskID].skillID;
-        uint agentsCount = skills[skillID].agentsCount;
+        uint poolCount = skills[skillID].agentsCount;
         for (uint ii = 0; ii < 3; ii++) {
-            for (uint i = 0; i < agentsCount; i++) {
-                //check for agents with the right skill
+            for (uint i = 0; i < poolCount; i++) {
+                //Check for agents in the pool
                 if(skills[skillID].agents[i] != address(0)) {
-                    //check for agents with the right skill level
+                    //Check for agents with the right skill level
                     if(agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
-                        //check for agents online
-                        if(isAgentOnline(skills[skillID].agents[i])) {
-                            //check for agents not busy
+                        //Check for agents online
+                        if(isAgentOnline(skills[skillID].agents[i]) == true) {
+                            //Check for agents not busy
                             if (agentIsBusy(skills[skillID].agents[i]) == false) {
-                                //match an agent
+                                //Match an agent
                                 if (tasksBundle2[taskID].reviewAgent1 == address(0)) {
                                     tasksBundle2[taskID].reviewAgent1 = skills[skillID].agents[i];
                                 } else if (tasksBundle2[taskID].reviewAgent2 == address(0)) {
@@ -639,10 +649,46 @@ contract Mentat {
         }
     }
 
-    function calculatePrice(uint taskID) public {
-        uint eligibleAgentsCount = tasksBundle2[taskID].eligibleAgentsCount;
-        
-        
+    function calculatePrice(uint taskID) 
+    internal returns (uint) {
+        uint count;
+        uint total = 0;
+        //Loop through all tasks
+        for (uint i = 1; i <= tasksCount; i++) {
+            //Find tasks with this skill ID of this task
+            if (tasksBundle1[i].skillID == tasksBundle1[taskID].skillID) {
+                //Find tasks that are TaskStatus.Accepted
+                if(tasksBundle1[i].status == TaskStatus.Accepted) {
+                    //Count these tasks
+                    count++; 
+                    //Sum the prices of those tasks
+                    total += tasksBundle2[i].price;
+                }
+            }
+        }
+        //Divide the total by number of agents online in the pool
+        uint online = 0;
+
+        uint skillID = tasksBundle1[taskID].skillID;
+        uint poolCount = skills[skillID].agentsCount;
+        for (uint ii = 1; ii <= poolCount; ii++) {
+            //Check for agents in the pool
+            if(skills[skillID].agents[ii] != address(0)) {
+                //Check for agents online
+                if(isAgentOnline(skills[skillID].agents[ii]) == true) {
+                    online++;
+                }
+            }
+        }
+        uint unadjustedPrice = total / online;            
+        //Multiply by the capacity premium
+        uint adjustedPrice = unadjustedPrice * (capacityPremium / 100);
+        //Return the higher of that price and the minimum wage
+        if (adjustedPrice >= minimumWage) {
+            return adjustedPrice;
+        } else {
+            return minimumWage;
+        }
     }
 
 }
