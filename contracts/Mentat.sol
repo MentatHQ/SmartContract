@@ -54,7 +54,7 @@ contract Mentat {
     }
 
     mapping(address => Agent) public agents;
-    uint agentsCount;
+    uint public agentsCount;
 
     struct AgentSkill {
         uint skillID;
@@ -85,15 +85,15 @@ contract Mentat {
         bool reviewResult2; //true - approved, false - denied
         bool reviewResult3; //true - approved, false - denied
         uint approvedCount;
-        uint expectedPrice; //per minute
         uint price; //per minute
+        uint expectedPrice; //total price
         uint tokensAmount;
         bool withdrawn;
         bool tokensWithdrawn;
         mapping(uint => address) eligibleAgents; //agents who will receive tokens if this tasks is not approved
         uint eligibleAgentsCount;
-        uint expectedCompleteTime;  //Duration in seconds
-        uint completeTime;  //Duration seconds
+        uint expectedCompleteTime;  //Duration
+        uint completeTime;  //Duration
     }
 
     mapping(uint => TaskBundle1) public tasksBundle1;
@@ -212,6 +212,7 @@ contract Mentat {
         emit SUCCESS("signedUp");
     }
 
+    //why is this an external method?
     function isAgentRegistered(address agent) public view
     checkAgentIsRegistered(agent)
     returns (bool)
@@ -219,6 +220,7 @@ contract Mentat {
         return true;
     }
 
+    //why is this an external method?
     function isAgentOnline(address agent) public view
     checkAgentIsRegistered(agent)
     returns (bool) {
@@ -295,11 +297,13 @@ contract Mentat {
         emit SUCCESS("agentReviewFinished");
     }
 
+    //what do we need this method for?
     function getTaskPrice(uint _taskID) public view
     returns (uint)  {
         return tasksBundle2[_taskID].price;
     }
 
+    //what do we need this method for?
     function agentGetCurrentTaskType() public view
     checkAgentIsRegistered(msg.sender)
     returns (bool) {
@@ -393,7 +397,7 @@ contract Mentat {
 
     }
 
-    function addTask(uint _skillID, uint _skillLevel, uint _price, uint _tokensAmount, bytes32 _request, uint _expectedCompleteTime) 
+    function addTask(uint _skillID, uint _skillLevel, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
     public returns (uint) {
         tasksCount++;
@@ -413,9 +417,9 @@ contract Mentat {
         tasksBundle2[tasksCount].reviewAgent2 = address(0);
         tasksBundle2[tasksCount].reviewAgent3 = address(0);
         tasksBundle2[tasksCount].approvedCount = 0;
-        tasksBundle2[tasksCount].expectedPrice = _expectedCompleteTime * _price;
-        tasksBundle2[tasksCount].price = _price;
-        tasksBundle2[tasksCount].tokensAmount = _tokensAmount;
+        tasksBundle2[tasksCount].price = calculatePrice(tasksCount);
+        tasksBundle2[tasksCount].expectedPrice = _expectedCompleteTime * tasksBundle2[tasksCount].price;
+        tasksBundle2[tasksCount].tokensAmount = 0;
         tasksBundle2[tasksCount].withdrawn = false;
         tasksBundle2[tasksCount].tokensWithdrawn = false;
         tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime;
@@ -428,7 +432,7 @@ contract Mentat {
     payable {
         require(tasksBundle1[taskId].status == TaskStatus.Opened);
         require(tasksBundle1[taskId].buyer == msg.sender);
-        require(msg.value == tasksBundle2[taskId].price);
+        require(msg.value == tasksBundle2[taskId].expectedPrice);
 
         msg.sender.transfer(msg.value);
         tasksBundle1[taskId].status = TaskStatus.Paid;
@@ -490,7 +494,7 @@ contract Mentat {
     }
 
     function getAgentSkills(address agent) view
-    checkAgentIsRegistered(msg.sender) 
+    checkAgentIsRegistered(agent) 
     public returns (uint[]) {
         uint[] agentSkillsArray;
         uint agentSkillsCount = agents[agent].agentSkillsCount;
@@ -531,8 +535,11 @@ contract Mentat {
 
     function getSkillData(uint skillID) view
     checkAgentIsRegistered(msg.sender) 
-    public returns(uint, bytes32, SkillType) {
-        return(agents[msg.sender].agentSkills[skillID].level, agents[msg.sender].agentSkills[skillID].name, agents[msg.sender].agentSkills[skillID].skill);
+    public returns(uint level, bytes32 name, SkillType skill) {
+        level = agents[msg.sender].agentSkills[skillID].level;
+        name = agents[msg.sender].agentSkills[skillID].name;
+        skill = agents[msg.sender].agentSkills[skillID].skill;
+        return;
     }
 
     function joinPool(uint skillID)
@@ -557,10 +564,19 @@ contract Mentat {
         for (uint i = 1; i <= agentsCount; i++) {
             if (skills[skillID].agents[i] == msg.sender) {
                 delete skills[skillID].agents[i];
-                skills[skillID].agentsCount--;
                 agents[msg.sender].inPool = false;
             }
         }
+    }
+
+    function createGenesisTask(uint _skillID, uint _skillLevel, uint _maxPrice, uint _startingPrice, bytes32 _request, uint _expectedCompleteTime) 
+    checkAppIsRegistered(msg.sender) 
+    public {
+        
+    }
+
+    function checkTask(uint taskId) public view returns(TaskStatus) {
+        return tasksBundle1[taskId].status;
     }
 
     ////
@@ -583,13 +599,17 @@ contract Mentat {
     internal {
         require(tasksBundle1[taskID].status == TaskStatus.Paid);
 
-        for (uint ii = 0; ii < agentsCount; ii++) {
-            // //check if agent is online
-            // if(isAgentOnline()) {
-            //     tasksBundle2[taskID].eligibleAgentsCount++;
-            //     tasksBundle2[taskID].eligibleAgents[tasksBundle2[taskID].eligibleAgentsCount] = skills[skillID].agents[i];
-            // }
-        }
+        //Loop through all skills
+        for (uint ii = 0; ii < skillsCount; ii++) {
+            //Loop through all agents in each pool
+            for(uint iii = 0; iii < skills[ii].agentsCount; iii++) {
+                //Check if agent is online
+                if(isAgentOnline(skills[ii].agents[iii]) == true) {
+                    tasksBundle2[taskID].eligibleAgentsCount++;
+                    tasksBundle2[taskID].eligibleAgents[tasksBundle2[taskID].eligibleAgentsCount] = skills[ii].agents[iii];
+                }
+            }
+        }    
 
         uint skillID = tasksBundle1[taskID].skillID;
         uint poolCount = skills[skillID].agentsCount;
