@@ -21,7 +21,8 @@ contract Mentat {
         Accepted, // // agent accepted the task
         Rejected, // after N rejections
         Completed, // agent answered
-        Reviewed // the third review is done
+        Reviewed, // the third review is done
+        OTPaid // overtime paid
     }
 
     struct Skill {
@@ -58,7 +59,8 @@ contract Mentat {
 
     struct AgentSkill {
         uint skillID;
-        uint level;
+        uint level; //min 1, max 5
+        uint experience; //levels up after 1000 for each level
         bytes32 name;
         SkillType skill;
     }
@@ -86,14 +88,16 @@ contract Mentat {
         bool reviewResult3; //true - approved, false - denied
         uint approvedCount;
         uint price; //per minute
-        uint expectedPrice; //total price
+        uint expectedPrice; //original price paid
         uint tokensAmount;
         bool withdrawn;
         bool tokensWithdrawn;
         mapping(uint => address) eligibleAgents; //agents who will receive tokens if this tasks is not approved
         uint eligibleAgentsCount;
         uint expectedCompleteTime;  //Duration
-        uint completeTime;  //Duration
+        uint acceptedTime; //DateTime
+        uint completeTime;  //DateTime
+        uint OTPrice; //overtime price paid
     }
 
     mapping(uint => TaskBundle1) public tasksBundle1;
@@ -297,13 +301,12 @@ contract Mentat {
         emit SUCCESS("agentReviewFinished");
     }
 
-    //what do we need this method for?
-    function getTaskPrice(uint _taskID) public view
+    function getTaskPrice(uint taskID) public view
     returns (uint)  {
-        return tasksBundle2[_taskID].price;
+        return tasksBundle2[taskID].expectedPrice;
     }
 
-    //what do we need this method for?
+    //what do we need this method for if we have agentGetCurrentTask()?
     function agentGetCurrentTaskType() public view
     checkAgentIsRegistered(msg.sender)
     returns (bool) {
@@ -344,6 +347,7 @@ contract Mentat {
         agents[msg.sender].currentTaskType = true;
         tasksBundle1[taskId].status = TaskStatus.Accepted;
         tasksBundle1[taskId].lastUpdateTimestamp = now;
+        tasksBundle2[taskId].acceptedTime = now;
         tasksBundle2[taskId].tokensAmount = tokensAmount;
         //agents[agent].isBusy = true; // should set after the last review
         agentUpdateOnline(agent);
@@ -385,7 +389,7 @@ contract Mentat {
         tasksBundle2[tasksCount].completeTime = now;
 
         //assign all overtime tasks and 20% of non-overtime tasks for review
-        if (tasksBundle1[taskId].createdTimestamp - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime || taskId % 5 == 0) {
+        if (tasksBundle2[taskId].acceptedTime - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime || taskId % 5 == 0) {
             assignReview(taskId);
             agents[msg.sender].currentTaskId = 0;
             agents[msg.sender].isBusy = false;
@@ -406,6 +410,7 @@ contract Mentat {
         tasksBundle1[tasksCount].buyer = msg.sender;
         tasksBundle1[tasksCount].skillID = _skillID;
         tasksBundle1[tasksCount].skillLevel = _skillLevel;
+        tasksBundle1[tasksCount].experience = skills[_skillID].skillLevelMultiplier * _skillLevel;
         tasksBundle1[tasksCount].request = _request = _request;
         tasksBundle1[tasksCount].response = "";
         tasksBundle1[tasksCount].status = TaskStatus.Opened;
@@ -448,13 +453,21 @@ contract Mentat {
     checkIsNotBlocked(msg.sender) 
     public {
         uint taskId = agents[msg.sender].currentTaskId;
+        uint skillID = tasksBundle1[taskId].skillID;
 
         require(tasksBundle1[taskId].agent == msg.sender);
         require(tasksBundle1[taskId].status == TaskStatus.Reviewed);
 
-        //withdrawn tokens, only if 2/3 reviews are positive
         if (tasksBundle2[taskId].approvedCount >= 2) {
+            //withdrawn tokens and gain experience, only if 2/3 reviews are positive
             MentatToken(mentatToken).transfer(msg.sender, tasksBundle2[taskId].tokensAmount);
+            uint gainedExperience = tasksBundle1[taskId].experience;
+            agents[msg.sender].agentSkills[skillID].experience += gainedExperience;
+            //level up until level 5
+            if (agents[msg.sender].agentSkills[skillID].experience >= 1000 && agents[msg.sender].agentSkills[skillID].level < 5) {
+                agents[msg.sender].agentSkills[skillID].level++;
+                agents[msg.sender].agentSkills[skillID].experience - 1000;
+            }
         } else {
             //redistribute tokens to eligibleAgents except msg.sender
             uint totalTokens = tasksBundle2[taskId].tokensAmount;
@@ -467,9 +480,12 @@ contract Mentat {
             }
         }
 
-        //withdrawn payment (ETH)
-        msg.sender.transfer(tasksBundle2[taskId].price);
+        //withdraw payment
+        msg.sender.transfer(getTaskPrice(taskId));
         tasksBundle2[taskId].withdrawn = true;
+
+        //withdrawn OT payment
+        msg.sender.transfer(getTaskOTPrice(taskId));
 
         agentUpdateOnline(msg.sender);
         tasksBundle1[taskId].lastUpdateTimestamp = now;
@@ -486,6 +502,7 @@ contract Mentat {
         agents[msg.sender].agentSkills[agentSkillsCount] = AgentSkill({
             skillID: _skillId,
             level: 1,
+            experience: 0,
             name: skills[_skillId].name,
             skill: skills[_skillId].skill
         });
@@ -569,7 +586,7 @@ contract Mentat {
         }
     }
 
-    function createGenesisTask(uint _skillID, uint _skillLevel, uint _maxPrice, uint _startingPrice, bytes32 _request, uint _expectedCompleteTime) 
+    function createGenesisTask(uint _skillID, uint _skillLevel, uint _maxPrice, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
     public {
         
@@ -578,6 +595,38 @@ contract Mentat {
     function checkTask(uint taskId) public view returns(TaskStatus) {
         return tasksBundle1[taskId].status;
     }
+
+    function getTaskOTPrice(uint taskID) public view returns (uint) {
+        uint acceptedTime = tasksBundle2[taskID].acceptedTime;
+        uint completedTime = tasksBundle2[taskID].completeTime;
+        uint price = tasksBundle2[taskID].price;
+        uint OTPrice = ((completedTime - acceptedTime) * price) - getTaskPrice(taskID);
+
+        if (OTPrice > 0) {
+            return OTPrice;
+        } else {
+            return 0 ether;
+        }    
+    }
+
+    function payOvertime(uint taskID)
+    checkAppIsRegistered(msg.sender) 
+    public payable {
+        require(tasksBundle1[taskID].status == TaskStatus.Reviewed);
+        require (msg.value == getTaskOTPrice(taskID));
+
+        tasksBundle2[taskID].OTPrice = getTaskOTPrice(taskID);
+        tasksBundle1[taskID].status = TaskStatus.OTPaid;
+    }
+
+    function buyerGetResponse(uint taskID) view
+    checkAppIsRegistered(msg.sender) 
+    public returns (bytes32) {
+        require(tasksBundle1[taskID].buyer == msg.sender);
+        require(tasksBundle1[taskID].status == TaskStatus.OTPaid);
+
+        return tasksBundle1[taskID].response;
+    } 
 
     ////
     // Internal methods
