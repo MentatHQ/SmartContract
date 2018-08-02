@@ -18,6 +18,7 @@ contract Mentat {
         Opened, // waiting for a payment
         Paid, // buyer should pay right after the opening
         Matched, // agent is matched for the task
+        Refunded, //agent could not be matched to task
         Accepted, // // agent accepted the task
         Rejected, // after N rejections
         Completed, // agent answered
@@ -351,6 +352,7 @@ contract Mentat {
         tasksBundle2[taskId].tokensAmount = tokensAmount;
         //agents[agent].isBusy = true; // should set after the last review
         agentUpdateOnline(agent);
+        emit SUCCESS("agent accept task");
     }
 
     function rejectTask()
@@ -368,7 +370,9 @@ contract Mentat {
 
         if (tasksBundle1[taskId].rejectedAgentsCount == taskRejectionsLimit) {
             tasksBundle1[taskId].status = TaskStatus.Rejected;
-            //notify buyer that task is rejected
+            //notify buyer that task is rejected and send refund
+            emit FAIL("This task has been rejected.");
+            sendRefund(taskId);
         }
 
         //TODO call assign task to new agent (make sure it doesn't re-assign to this agent)
@@ -387,6 +391,7 @@ contract Mentat {
         tasksBundle1[taskId].lastUpdateTimestamp = now;
         tasksBundle1[taskId].response = response;
         tasksBundle2[tasksCount].completeTime = now;
+        emit SUCCESS("This task has been accepted.");
 
         //assign all overtime tasks and 20% of non-overtime tasks for review
         if (tasksBundle2[taskId].acceptedTime - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime || taskId % 5 == 0) {
@@ -403,7 +408,7 @@ contract Mentat {
 
     function addTask(uint _skillID, uint _skillLevel, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
-    public returns (uint) {
+    public {
         tasksCount++;
 
         tasksBundle1[tasksCount].agent = address(0);
@@ -429,7 +434,9 @@ contract Mentat {
         tasksBundle2[tasksCount].tokensWithdrawn = false;
         tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime;
 
-        return(tasksBundle2[tasksCount].expectedPrice);
+        //call sendPayment()
+        emit SUCCESS("This task has been added.");
+        sendPayment(tasksCount);
     }
 
     function sendPayment(uint taskId) public 
@@ -444,6 +451,7 @@ contract Mentat {
         tasksBundle1[taskId].lastUpdateTimestamp = now;
 
         //Call assignTask()
+        emit SUCCESS("This task has been paid.");
         assignTask(taskId);
     }
 
@@ -507,6 +515,7 @@ contract Mentat {
             skill: skills[_skillId].skill
         });
         
+        emit SUCCESS("This skill has been added.");
         return true;
     }
 
@@ -530,6 +539,8 @@ contract Mentat {
         skills[skillsCount].name = _name;
         skills[skillsCount].skill = SkillType.Skill;
         skills[skillsCount].skillLevelMultiplier = _skillLevelMultiplier;
+
+        emit SUCCESS("This skill has been created.");
     }
 
     function createExpertise(bytes32 _name, uint _skillLevelMultiplier) public {
@@ -539,6 +550,8 @@ contract Mentat {
         skills[skillsCount].name = _name;
         skills[skillsCount].skill = SkillType.Expertise;
         skills[skillsCount].skillLevelMultiplier = _skillLevelMultiplier;
+
+        emit SUCCESS("This expertise has been created.");
     }    
 
     function appSignUp(bytes32 _name) isNotAppRegistered(msg.sender) public {
@@ -548,6 +561,7 @@ contract Mentat {
         });
 
         applicationsCount++;
+        emit SUCCESS("App signed up.");
     }
 
     function getSkillData(uint skillID) view
@@ -569,6 +583,7 @@ contract Mentat {
         uint agentsCount = skills[skillID].agentsCount;
         skills[skillID].agents[agentsCount] == msg.sender;
         agents[msg.sender].inPool = true;
+        emit SUCCESS("Agent joined pool.");
     }
 
     function leavePool(uint skillID)
@@ -582,14 +597,42 @@ contract Mentat {
             if (skills[skillID].agents[i] == msg.sender) {
                 delete skills[skillID].agents[i];
                 agents[msg.sender].inPool = false;
+                emit SUCCESS("Agent left pool.");
             }
         }
     }
 
-    function createGenesisTask(uint _skillID, uint _skillLevel, uint _maxPrice, bytes32 _request, uint _expectedCompleteTime) 
+    function createGenesisTask(uint _skillID, uint _skillLevel, uint _price, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
     public {
-        
+        tasksCount++;
+
+        tasksBundle1[tasksCount].agent = address(0);
+        tasksBundle1[tasksCount].buyer = msg.sender;
+        tasksBundle1[tasksCount].skillID = _skillID;
+        tasksBundle1[tasksCount].skillLevel = _skillLevel;
+        tasksBundle1[tasksCount].experience = skills[_skillID].skillLevelMultiplier * _skillLevel;
+        tasksBundle1[tasksCount].request = _request = _request;
+        tasksBundle1[tasksCount].response = "";
+        tasksBundle1[tasksCount].status = TaskStatus.Opened;
+        tasksBundle1[tasksCount].rejectedAgentsCount = 0;
+        tasksBundle1[tasksCount].createdTimestamp = now;
+        tasksBundle1[tasksCount].lastUpdateTimestamp = now;
+
+        tasksBundle2[tasksCount].reviewAgent1 = address(0);
+        tasksBundle2[tasksCount].reviewAgent2 = address(0);
+        tasksBundle2[tasksCount].reviewAgent3 = address(0);
+        tasksBundle2[tasksCount].approvedCount = 0;
+        tasksBundle2[tasksCount].price = _price;
+        tasksBundle2[tasksCount].expectedPrice = _expectedCompleteTime * tasksBundle2[tasksCount].price;
+        tasksBundle2[tasksCount].tokensAmount = 0;
+        tasksBundle2[tasksCount].withdrawn = false;
+        tasksBundle2[tasksCount].tokensWithdrawn = false;
+        tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime;
+
+        //call sendPayment()
+        emit SUCCESS("This task has been added.");
+        sendPayment(tasksCount);
     }
 
     function checkTask(uint taskId) public view returns(TaskStatus) {
@@ -617,6 +660,7 @@ contract Mentat {
 
         tasksBundle2[taskID].OTPrice = getTaskOTPrice(taskID);
         tasksBundle1[taskID].status = TaskStatus.OTPaid;
+        emit SUCCESS("The OT has been paid.");
     }
 
     function buyerGetResponse(uint taskID) view
@@ -645,7 +689,7 @@ contract Mentat {
     }
 
     function assignTask(uint taskID) 
-    internal {
+    internal returns (bool) {
         require(tasksBundle1[taskID].status == TaskStatus.Paid);
 
         //Loop through all skills
@@ -684,10 +728,18 @@ contract Mentat {
                 }
             }
         }
+        if (tasksBundle1[taskID].status == TaskStatus.Matched) {
+            emit SUCCESS("This task has been assigned.");
+            return true;
+        } else {
+            sendRefund(taskID);
+            emit FAIL("This task could not be matched.");
+            return false;
+        }
     }
 
     function assignReview(uint taskID) 
-    internal {
+    internal returns(bool){
         require(tasksBundle1[taskID].status == TaskStatus.Completed);
 
         uint skillID = tasksBundle1[taskID].skillID;
@@ -715,6 +767,15 @@ contract Mentat {
                     }
                 }
             }
+        }
+        if (tasksBundle2[taskID].reviewAgent1 != address(0) && 
+        tasksBundle2[taskID].reviewAgent2 != address(0) && 
+        tasksBundle2[taskID].reviewAgent3 != address(0)) {
+            emit SUCCESS("This review has been assigned.");
+            return true;
+        } else {
+            emit SUCCESS("Review has not been assigned.");
+            return false;
         }
     }
 
@@ -758,6 +819,14 @@ contract Mentat {
         } else {
             return minimumWage;
         }
+    }
+
+    function sendRefund(uint taskID) 
+    internal {
+        require(tasksBundle1[taskID].status == TaskStatus.Paid);
+
+        tasksBundle1[taskID].status = TaskStatus.Refunded;
+        tasksBundle1[taskID].buyer.transfer(getTaskPrice(taskID));
     }
 
 }
