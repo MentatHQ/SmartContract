@@ -392,7 +392,8 @@ contract Mentat {
         emit SUCCESS("This task has been accepted.");
 
         //assign all overtime tasks and 20% of non-overtime tasks for review
-        if (tasksBundle1[taskId].acceptedTime - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime || taskId % 5 == 0) {
+        if (tasksBundle1[taskId].acceptedTime - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime ||
+         taskId % 5 == 0) {
             assignReview(taskId);
             agents[msg.sender].currentTaskId = 0;
             agents[msg.sender].isBusy = false;
@@ -670,6 +671,11 @@ contract Mentat {
         return tasksBundle1[taskID].response;
     } 
 
+    function getTokenBalance(address agent) view 
+    public returns(uint) {
+        return MentatToken(mentatToken).balanceOf(agent);
+    }
+
     ////
     // Internal methods
     ///////////////
@@ -721,7 +727,7 @@ contract Mentat {
                         //Check for agents not busy
                         if (agentIsBusy(skills[skillID].agents[i]) == false) {
                             //Match the agent with the highest token balance
-                            uint tokenBalance = MentatToken(mentatToken).balanceOf(skills[skillID].agents[i]);
+                            uint tokenBalance = getTokenBalance(skills[skillID].agents[i]);
                             if (tokenBalance > highestBalance) {
                                 highestBalance = tokenBalance;
                                 tasksBundle1[taskID].agent = skills[skillID].agents[i];
@@ -783,7 +789,7 @@ contract Mentat {
         }
     }
     
-    //get sum of prices of all lives tasks in this pool
+    //get sum of prices of all live tasks in this pool
     function getSumPool(uint taskID) internal returns (uint) {
         uint count;
         uint total = 0;
@@ -824,7 +830,7 @@ contract Mentat {
 
     function calculatePrice(uint taskID) 
     internal returns (uint) {
-        //get sum of prices of all lives tasks in this pool
+        //get sum of prices of all live tasks in this pool
         uint total = getSumPool(taskID);
         //get count of all agents online in this pool
         uint online = getOnlinePool(taskID);
