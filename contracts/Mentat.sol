@@ -56,7 +56,6 @@ contract Mentat {
     }
 
     mapping(address => Agent) public agents;
-    uint public agentsCount;
 
     struct AgentSkill {
         uint skillID;
@@ -78,6 +77,9 @@ contract Mentat {
         uint rejectedAgentsCount;
         uint createdTimestamp;  //DateTime
         uint lastUpdateTimestamp; //DateTime
+        uint acceptedTime; //DateTime
+        mapping(uint => address) eligibleAgents; //agents who will receive tokens if this tasks is not approved
+        uint eligibleAgentsCount;
     }
 
     struct TaskBundle2 {
@@ -93,10 +95,7 @@ contract Mentat {
         uint tokensAmount;
         bool withdrawn;
         bool tokensWithdrawn;
-        mapping(uint => address) eligibleAgents; //agents who will receive tokens if this tasks is not approved
-        uint eligibleAgentsCount;
         uint expectedCompleteTime;  //Duration
-        uint acceptedTime; //DateTime
         uint completeTime;  //DateTime
         uint OTPrice; //overtime price paid
     }
@@ -111,7 +110,6 @@ contract Mentat {
     }
 
     mapping(address => Application) public applications;
-    uint public applicationsCount;
 
     ////
     // Events
@@ -212,8 +210,7 @@ contract Mentat {
             currentTaskId : 0,
             currentTaskType : false,
             blockedUntilTimestamp : 0
-            });
-        agentsCount++;    
+            });  
         emit SUCCESS("signedUp");
     }
 
@@ -307,13 +304,14 @@ contract Mentat {
         return tasksBundle2[taskID].expectedPrice;
     }
 
-    //what do we need this method for if we have agentGetCurrentTask()?
+    //why do we need this method if we have agentGetCurrentTask()?
     function agentGetCurrentTaskType() public view
     checkAgentIsRegistered(msg.sender)
     returns (bool) {
         return agents[msg.sender].currentTaskType;
     }
 
+    //what does this method do?
     function changeAgent(uint _taskID) public
     checkAgentIsRegistered(msg.sender) {
         agents[msg.sender].isBusy = true;
@@ -348,7 +346,7 @@ contract Mentat {
         agents[msg.sender].currentTaskType = true;
         tasksBundle1[taskId].status = TaskStatus.Accepted;
         tasksBundle1[taskId].lastUpdateTimestamp = now;
-        tasksBundle2[taskId].acceptedTime = now;
+        tasksBundle1[taskId].acceptedTime = now;
         tasksBundle2[taskId].tokensAmount = tokensAmount;
         //agents[agent].isBusy = true; // should set after the last review
         agentUpdateOnline(agent);
@@ -394,7 +392,7 @@ contract Mentat {
         emit SUCCESS("This task has been accepted.");
 
         //assign all overtime tasks and 20% of non-overtime tasks for review
-        if (tasksBundle2[taskId].acceptedTime - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime || taskId % 5 == 0) {
+        if (tasksBundle1[taskId].acceptedTime - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime || taskId % 5 == 0) {
             assignReview(taskId);
             agents[msg.sender].currentTaskId = 0;
             agents[msg.sender].isBusy = false;
@@ -479,11 +477,11 @@ contract Mentat {
         } else {
             //redistribute tokens to eligibleAgents except msg.sender
             uint totalTokens = tasksBundle2[taskId].tokensAmount;
-            uint eligibleAgentsCount = tasksBundle2[taskId].eligibleAgentsCount;
+            uint eligibleAgentsCount = tasksBundle1[taskId].eligibleAgentsCount;
             uint tokensAmount = totalTokens / eligibleAgentsCount;
             for (uint i = 1; i <= eligibleAgentsCount; i++) {
-                if (tasksBundle2[taskId].eligibleAgents[i] != msg.sender) {
-                    MentatToken(mentatToken).transfer(tasksBundle2[taskId].eligibleAgents[i], tokensAmount);
+                if (tasksBundle1[taskId].eligibleAgents[i] != msg.sender) {
+                    MentatToken(mentatToken).transfer(tasksBundle1[taskId].eligibleAgents[i], tokensAmount);
                 }
             }
         }
@@ -560,7 +558,6 @@ contract Mentat {
             registrationTimestamp: now
         });
 
-        applicationsCount++;
         emit SUCCESS("App signed up.");
     }
 
@@ -602,6 +599,7 @@ contract Mentat {
         }
     }
 
+    //create a task in an inactive skill market
     function createGenesisTask(uint _skillID, uint _skillLevel, uint _price, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
     public {
@@ -640,7 +638,7 @@ contract Mentat {
     }
 
     function getTaskOTPrice(uint taskID) public view returns (uint) {
-        uint acceptedTime = tasksBundle2[taskID].acceptedTime;
+        uint acceptedTime = tasksBundle1[taskID].acceptedTime;
         uint completedTime = tasksBundle2[taskID].completeTime;
         uint price = tasksBundle2[taskID].price;
         uint OTPrice = ((completedTime - acceptedTime) * price) - getTaskPrice(taskID);
@@ -687,22 +685,28 @@ contract Mentat {
     {
         return (agents[agent].isBusy);
     }
-
-    function assignTask(uint taskID) 
-    internal returns (bool) {
-        require(tasksBundle1[taskID].status == TaskStatus.Paid);
-
+    
+    //add all online agents to eligibleAgents mapping
+    function setOnlineAll(uint taskID) internal {
         //Loop through all skills
         for (uint ii = 0; ii < skillsCount; ii++) {
             //Loop through all agents in each pool
             for(uint iii = 0; iii < skills[ii].agentsCount; iii++) {
                 //Check if agent is online
                 if(isAgentOnline(skills[ii].agents[iii]) == true) {
-                    tasksBundle2[taskID].eligibleAgentsCount++;
-                    tasksBundle2[taskID].eligibleAgents[tasksBundle2[taskID].eligibleAgentsCount] = skills[ii].agents[iii];
+                    tasksBundle1[taskID].eligibleAgentsCount++;
+                    tasksBundle1[taskID].eligibleAgents[tasksBundle1[taskID].eligibleAgentsCount] = skills[ii].agents[iii];
                 }
             }
-        }    
+        }
+    }
+
+    function assignTask(uint taskID) 
+    internal returns (bool) {
+        require(tasksBundle1[taskID].status == TaskStatus.Paid);
+
+        //add all online agents to eligibleAgents mapping
+        setOnlineAll(taskID);    
 
         uint skillID = tasksBundle1[taskID].skillID;
         uint poolCount = skills[skillID].agentsCount;
@@ -778,9 +782,9 @@ contract Mentat {
             return false;
         }
     }
-
-    function calculatePrice(uint taskID) 
-    internal returns (uint) {
+    
+    //get sum of prices of all lives tasks in this pool
+    function getSumPool(uint taskID) internal returns (uint) {
         uint count;
         uint total = 0;
         //Loop through all tasks
@@ -796,6 +800,11 @@ contract Mentat {
                 }
             }
         }
+        return total;
+    }
+    
+    //get count of all agents online in this pool
+    function getOnlinePool(uint taskID) internal returns (uint) {
         //Divide the total by number of agents online in the pool
         uint online = 0;
 
@@ -810,6 +819,16 @@ contract Mentat {
                 }
             }
         }
+        return online;
+    }
+
+    function calculatePrice(uint taskID) 
+    internal returns (uint) {
+        //get sum of prices of all lives tasks in this pool
+        uint total = getSumPool(taskID);
+        //get count of all agents online in this pool
+        uint online = getOnlinePool(taskID);
+        
         uint unadjustedPrice = total / online;            
         //Multiply by the capacity premium
         uint adjustedPrice = unadjustedPrice * (capacityPremium / 100);
