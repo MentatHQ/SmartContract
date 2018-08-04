@@ -78,6 +78,7 @@ contract Mentat {
         uint createdTimestamp;  //DateTime
         uint lastUpdateTimestamp; //DateTime
         uint acceptedTime; //DateTime
+        uint completeTime;  //DateTime
         mapping(uint => address) eligibleAgents; //agents who will receive tokens if this tasks is not approved
         uint eligibleAgentsCount;
     }
@@ -95,8 +96,7 @@ contract Mentat {
         uint tokensAmount;
         bool withdrawn;
         bool tokensWithdrawn;
-        uint expectedCompleteTime;  //Duration
-        uint completeTime;  //DateTime
+        uint expectedCompleteTime;  //Duration in minutes
         uint OTPrice; //overtime price paid
     }
 
@@ -388,11 +388,11 @@ contract Mentat {
         tasksBundle1[taskId].status = TaskStatus.Completed;
         tasksBundle1[taskId].lastUpdateTimestamp = now;
         tasksBundle1[taskId].response = response;
-        tasksBundle2[tasksCount].completeTime = now;
+        tasksBundle1[tasksCount].completeTime = now;
         emit SUCCESS("This task has been accepted.");
 
         //assign all overtime tasks and 20% of non-overtime tasks for review
-        if (tasksBundle1[taskId].acceptedTime - tasksBundle2[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime ||
+        if (tasksBundle1[taskId].acceptedTime - tasksBundle1[taskId].completeTime > tasksBundle2[taskId].expectedCompleteTime ||
          taskId % 5 == 0) {
             assignReview(taskId);
             agents[msg.sender].currentTaskId = 0;
@@ -408,6 +408,8 @@ contract Mentat {
     function addTask(uint _skillID, uint _skillLevel, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
     public {
+        require(1 <= _skillLevel && _skillLevel <= 5);
+
         tasksCount++;
 
         tasksBundle1[tasksCount].agent = address(0);
@@ -431,11 +433,9 @@ contract Mentat {
         tasksBundle2[tasksCount].tokensAmount = 0;
         tasksBundle2[tasksCount].withdrawn = false;
         tasksBundle2[tasksCount].tokensWithdrawn = false;
-        tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime;
+        tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime * 1 minutes;
 
-        //call sendPayment()
         emit SUCCESS("This task has been added.");
-        sendPayment(tasksCount);
     }
 
     function sendPayment(uint taskId) public 
@@ -454,6 +454,7 @@ contract Mentat {
         assignTask(taskId);
     }
 
+    // uses ~500k gas
     function withdrawPayment() 
     checkAgentIsRegistered(msg.sender) 
     checkAgentIsNotBusy(msg.sender) 
@@ -473,7 +474,7 @@ contract Mentat {
             //level up until level 5
             if (agents[msg.sender].agentSkills[skillID].experience >= 1000 && agents[msg.sender].agentSkills[skillID].level < 5) {
                 agents[msg.sender].agentSkills[skillID].level++;
-                agents[msg.sender].agentSkills[skillID].experience - 1000;
+                agents[msg.sender].agentSkills[skillID].experience -= 1000;
             }
         } else {
             //redistribute tokens to eligibleAgents except msg.sender
@@ -487,12 +488,9 @@ contract Mentat {
             }
         }
 
-        //withdraw payment
-        msg.sender.transfer(getTaskPrice(taskId));
+        //withdraw payment + OT payment
+        msg.sender.transfer(getTaskPrice(taskId) + getTaskOTPrice(taskId));
         tasksBundle2[taskId].withdrawn = true;
-
-        //withdrawn OT payment
-        msg.sender.transfer(getTaskOTPrice(taskId));
 
         agentUpdateOnline(msg.sender);
         tasksBundle1[taskId].lastUpdateTimestamp = now;
@@ -575,12 +573,13 @@ contract Mentat {
     checkAgentIsRegistered(msg.sender)
     public {
         require(agents[msg.sender].agentSkills[skillID].skillID == skillID);
-        require(agents[msg.sender].inPool = false);
+        require(agents[msg.sender].inPool == false);
 
         skills[skillID].agentsCount++;
         uint agentsCount = skills[skillID].agentsCount;
-        skills[skillID].agents[agentsCount] == msg.sender;
+        skills[skillID].agents[agentsCount] = msg.sender;
         agents[msg.sender].inPool = true;
+        agentUpdateOnline(msg.sender);
         emit SUCCESS("Agent joined pool.");
     }
 
@@ -588,13 +587,14 @@ contract Mentat {
     checkAgentIsRegistered(msg.sender)
     public {
         require(agents[msg.sender].agentSkills[skillID].skillID == skillID);
-        require(agents[msg.sender].inPool = true);
+        require(agents[msg.sender].inPool == true);
 
         uint agentsCount = skills[skillID].agentsCount;
         for (uint i = 1; i <= agentsCount; i++) {
             if (skills[skillID].agents[i] == msg.sender) {
                 delete skills[skillID].agents[i];
                 agents[msg.sender].inPool = false;
+                agentUpdateOnline(msg.sender);
                 emit SUCCESS("Agent left pool.");
             }
         }
@@ -604,6 +604,8 @@ contract Mentat {
     function createGenesisTask(uint _skillID, uint _skillLevel, uint _price, bytes32 _request, uint _expectedCompleteTime) 
     checkAppIsRegistered(msg.sender) 
     public {
+        require(1 <= _skillLevel && _skillLevel <= 5);
+
         tasksCount++;
 
         tasksBundle1[tasksCount].agent = address(0);
@@ -622,16 +624,15 @@ contract Mentat {
         tasksBundle2[tasksCount].reviewAgent2 = address(0);
         tasksBundle2[tasksCount].reviewAgent3 = address(0);
         tasksBundle2[tasksCount].approvedCount = 0;
-        tasksBundle2[tasksCount].price = _price;
+        tasksBundle2[tasksCount].price = _price * 1 ether;
+        require(tasksBundle2[tasksCount].price >= minimumWage);
         tasksBundle2[tasksCount].expectedPrice = _expectedCompleteTime * tasksBundle2[tasksCount].price;
         tasksBundle2[tasksCount].tokensAmount = 0;
         tasksBundle2[tasksCount].withdrawn = false;
         tasksBundle2[tasksCount].tokensWithdrawn = false;
-        tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime;
+        tasksBundle2[tasksCount].expectedCompleteTime = _expectedCompleteTime * 1 minutes;
 
-        //call sendPayment()
         emit SUCCESS("This task has been added.");
-        sendPayment(tasksCount);
     }
 
     function checkTask(uint taskId) public view returns(TaskStatus) {
@@ -640,7 +641,7 @@ contract Mentat {
 
     function getTaskOTPrice(uint taskID) public view returns (uint) {
         uint acceptedTime = tasksBundle1[taskID].acceptedTime;
-        uint completedTime = tasksBundle2[taskID].completeTime;
+        uint completedTime = tasksBundle1[taskID].completeTime;
         uint price = tasksBundle2[taskID].price;
         uint OTPrice = ((completedTime - acceptedTime) * price) - getTaskPrice(taskID);
 
@@ -658,7 +659,9 @@ contract Mentat {
         require (msg.value == getTaskOTPrice(taskID));
 
         tasksBundle2[taskID].OTPrice = getTaskOTPrice(taskID);
+        msg.sender.transfer(getTaskOTPrice(taskID));
         tasksBundle1[taskID].status = TaskStatus.OTPaid;
+        tasksBundle1[taskID].lastUpdateTimestamp = now;
         emit SUCCESS("The OT has been paid.");
     }
 
@@ -695,18 +698,22 @@ contract Mentat {
     //add all online agents to eligibleAgents mapping
     function setOnlineAll(uint taskID) internal {
         //Loop through all skills
-        for (uint ii = 0; ii < skillsCount; ii++) {
+        uint skillsTotal = skillsCount;
+        uint eligibleAgentsCount;
+        for (uint ii = 0; ii < skillsTotal; ii++) {
             //Loop through all agents in each pool
             for(uint iii = 0; iii < skills[ii].agentsCount; iii++) {
                 //Check if agent is online
                 if(isAgentOnline(skills[ii].agents[iii]) == true) {
-                    tasksBundle1[taskID].eligibleAgentsCount++;
-                    tasksBundle1[taskID].eligibleAgents[tasksBundle1[taskID].eligibleAgentsCount] = skills[ii].agents[iii];
+                    eligibleAgentsCount++;
+                    tasksBundle1[taskID].eligibleAgents[eligibleAgentsCount] = skills[ii].agents[iii];
                 }
             }
         }
+        tasksBundle1[taskID].eligibleAgentsCount = eligibleAgentsCount;
     }
 
+    // uses ~450k gas (including setOnlineAll)
     function assignTask(uint taskID) 
     internal returns (bool) {
         require(tasksBundle1[taskID].status == TaskStatus.Paid);
@@ -717,28 +724,32 @@ contract Mentat {
         uint skillID = tasksBundle1[taskID].skillID;
         uint poolCount = skills[skillID].agentsCount;
         uint highestBalance = 0;
+        address assignedAgent = address(0);
         for (uint i = 1; i <= poolCount; i++) {
             //Check for agents in the pool
-            if(skills[skillID].agents[i] != address(0)) {
+            if(skills[skillID].agents[i] != address(0)) { 
                 //Check for agents with the right skill level
-                if(agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
+                if (agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
                     //Check for agents online
-                    if(isAgentOnline(skills[skillID].agents[i]) == true) {
+                    if (isAgentOnline(skills[skillID].agents[i]) == true) {
                         //Check for agents not busy
                         if (agentIsBusy(skills[skillID].agents[i]) == false) {
                             //Match the agent with the highest token balance
                             uint tokenBalance = getTokenBalance(skills[skillID].agents[i]);
                             if (tokenBalance > highestBalance) {
                                 highestBalance = tokenBalance;
-                                tasksBundle1[taskID].agent = skills[skillID].agents[i];
-                                tasksBundle1[taskID].status = TaskStatus.Matched;
+                                assignedAgent = skills[skillID].agents[i];
                             }
                         }
                     }
-                }
+                }                            
             }
         }
-        if (tasksBundle1[taskID].status == TaskStatus.Matched) {
+        tasksBundle1[taskID].agent = assignedAgent;
+
+        if (assignedAgent != address(0)) {
+            tasksBundle1[taskID].status = TaskStatus.Matched;
+            tasksBundle1[taskID].lastUpdateTimestamp = now;
             emit SUCCESS("This task has been assigned.");
             return true;
         } else {
@@ -748,53 +759,61 @@ contract Mentat {
         }
     }
 
+    // uses ~450k gas
     function assignReview(uint taskID) 
     internal returns(bool){
         require(tasksBundle1[taskID].status == TaskStatus.Completed);
 
         uint skillID = tasksBundle1[taskID].skillID;
         uint poolCount = skills[skillID].agentsCount;
+        address reviewAgent1 = tasksBundle2[taskID].reviewAgent1;
+        address reviewAgent2 = tasksBundle2[taskID].reviewAgent2;
+        address reviewAgent3 = tasksBundle2[taskID].reviewAgent3;
         for (uint ii = 0; ii < 3; ii++) {
             for (uint i = 0; i < poolCount; i++) {
                 //Check for agents in the pool
-                if(skills[skillID].agents[i] != address(0)) {
+                if(skills[skillID].agents[i] != address(0)) { 
                     //Check for agents with the right skill level
-                    if(agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
+                    if (agents[skills[skillID].agents[i]].agentSkills[skillID].level >= tasksBundle1[taskID].skillLevel) {
                         //Check for agents online
-                        if(isAgentOnline(skills[skillID].agents[i]) == true) {
+                        if (isAgentOnline(skills[skillID].agents[i]) == true) {
                             //Check for agents not busy
                             if (agentIsBusy(skills[skillID].agents[i]) == false) {
                                 //Match an agent
-                                if (tasksBundle2[taskID].reviewAgent1 == address(0)) {
-                                    tasksBundle2[taskID].reviewAgent1 = skills[skillID].agents[i];
-                                } else if (tasksBundle2[taskID].reviewAgent2 == address(0)) {
-                                    tasksBundle2[taskID].reviewAgent2 = skills[skillID].agents[i];
-                                } else if (tasksBundle2[taskID].reviewAgent3 == address(0)) {
-                                    tasksBundle2[taskID].reviewAgent3 = skills[skillID].agents[i];
+                                if (reviewAgent1 == address(0)) {
+                                    reviewAgent1 = skills[skillID].agents[i];
+                                } else if (reviewAgent2 == address(0)) {
+                                    reviewAgent2 = skills[skillID].agents[i];
+                                } else if (reviewAgent3 == address(0)) {
+                                    reviewAgent3 = skills[skillID].agents[i];
                                 }
                             }
-                        }
+                        }        
                     }
-                }
+                }    
             }
-        }
-        if (tasksBundle2[taskID].reviewAgent1 != address(0) && 
-        tasksBundle2[taskID].reviewAgent2 != address(0) && 
-        tasksBundle2[taskID].reviewAgent3 != address(0)) {
+        }    
+        if (reviewAgent1 != address(0) && reviewAgent2 != address(0) && reviewAgent3 != address(0)) {
+            tasksBundle2[taskID].reviewAgent1 = reviewAgent1;
+            tasksBundle2[taskID].reviewAgent2 = reviewAgent2;
+            tasksBundle2[taskID].reviewAgent3 = reviewAgent3;
+            tasksBundle1[taskID].lastUpdateTimestamp = now;
             emit SUCCESS("This review has been assigned.");
             return true;
         } else {
-            emit SUCCESS("Review has not been assigned.");
+            emit FAIL("Review has not been assigned.");
             return false;
         }
     }
     
     //get sum of prices of all live tasks in this pool
-    function getSumPool(uint taskID) internal returns (uint) {
+    function getSumPool(uint taskID) view 
+    internal returns (uint) {
         uint count;
         uint total = 0;
+        uint totalTasks = tasksCount;
         //Loop through all tasks
-        for (uint i = 1; i <= tasksCount; i++) {
+        for (uint i = 1; i <= totalTasks; i++) {
             //Find tasks with this skill ID of this task
             if (tasksBundle1[i].skillID == tasksBundle1[taskID].skillID) {
                 //Find tasks that are TaskStatus.Accepted
@@ -810,7 +829,8 @@ contract Mentat {
     }
     
     //get count of all agents online in this pool
-    function getOnlinePool(uint taskID) internal returns (uint) {
+    function getOnlinePool(uint taskID) view 
+    internal returns (uint) {
         //Divide the total by number of agents online in the pool
         uint online = 0;
 
@@ -828,7 +848,8 @@ contract Mentat {
         return online;
     }
 
-    function calculatePrice(uint taskID) 
+    // uses ~250k gas (including internal methods)
+    function calculatePrice(uint taskID) view 
     internal returns (uint) {
         //get sum of prices of all live tasks in this pool
         uint total = getSumPool(taskID);
